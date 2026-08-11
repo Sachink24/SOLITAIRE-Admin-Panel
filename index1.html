@@ -144,8 +144,28 @@
     .login-card .btn-primary:active {
       transform: scale(0.97);
     }
+    .login-card .btn-primary.btn-secondary {
+      background: transparent;
+      border: 1px solid #2a2a3e;
+      color: #a89b7a;
+      box-shadow: none;
+      font-size: 13px;
+      padding: 10px;
+      margin-top: 8px;
+    }
+    .login-card .btn-primary.btn-secondary:hover {
+      border-color: #c9a84c;
+      color: #c9a84c;
+    }
     .login-error {
       color: #d46a6a;
+      font-size: 13px;
+      text-align: center;
+      margin-top: 10px;
+      min-height: 20px;
+    }
+    .login-success {
+      color: #6ad49a;
       font-size: 13px;
       text-align: center;
       margin-top: 10px;
@@ -169,6 +189,25 @@
     }
     .admin-backup-info strong {
       color: #c9a84c;
+    }
+    .login-links {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+      font-size: 12px;
+    }
+    .login-links a {
+      color: #6a5f48;
+      text-decoration: none;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .login-links a:hover {
+      color: #c9a84c;
+    }
+    .login-links a i {
+      margin-right: 4px;
     }
 
     /* ===== HEADER ===== */
@@ -743,6 +782,27 @@
     .lb-panel.active {
       display: block;
     }
+
+    /* Forgot/Reset password screens */
+    .forgot-card, .reset-card {
+      display: none;
+    }
+    .forgot-card.active, .reset-card.active {
+      display: block;
+    }
+    .back-to-login {
+      text-align: center;
+      margin-top: 12px;
+      color: #6a5f48;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .back-to-login:hover {
+      color: #c9a84c;
+    }
+    .back-to-login i {
+      margin-right: 4px;
+    }
   </style>
 </head>
 <body>
@@ -751,13 +811,42 @@
     <!-- LOGIN -->
     <div class="login-overlay" id="loginOverlay">
       <div class="login-card">
-        <h2><i class="fas fa-gem"></i> SOLITAIRE</h2>
-        <div class="subtitle">Admin Panel · Secure Control</div>
-        <div class="form-group"><label>Admin Email</label><input type="text" id="adminEmail" value="sachinkale241981@gmail.com"></div>
-        <div class="form-group"><label>Password</label><input type="password" id="adminPassword" value="Password@123"></div>
-        <button class="btn-primary" id="adminLoginBtn"><i class="fas fa-sign-in-alt"></i> Sign In</button>
-        <div class="login-error" id="loginError"></div>
-        <div class="admin-backup-info"><i class="fab fa-whatsapp"></i><span>Admin Backup: <strong>8779023084</strong> (WhatsApp)</span></div>
+        <!-- Login Form -->
+        <div id="loginForm">
+          <h2><i class="fas fa-gem"></i> SOLITAIRE</h2>
+          <div class="subtitle">Admin Panel · Secure Control</div>
+          <div class="form-group"><label>Admin Email</label><input type="text" id="adminEmail" value="sachinkale241981@gmail.com"></div>
+          <div class="form-group"><label>Password</label><input type="password" id="adminPassword" value="Password@123"></div>
+          <button class="btn-primary" id="adminLoginBtn"><i class="fas fa-sign-in-alt"></i> Sign In</button>
+          <div class="login-error" id="loginError"></div>
+          <div class="login-links">
+            <a id="forgotPasswordLink"><i class="fas fa-key"></i> Forgot Password?</a>
+          </div>
+          <div class="admin-backup-info"><i class="fab fa-whatsapp"></i><span>Admin Backup: <strong>8779023084</strong> (WhatsApp)</span></div>
+        </div>
+
+        <!-- Forgot Password Form -->
+        <div id="forgotForm" class="forgot-card">
+          <h2><i class="fas fa-key"></i> Forgot Password</h2>
+          <div class="subtitle">Enter your email to reset</div>
+          <div class="form-group"><label>Email Address</label><input type="email" id="forgotEmail" placeholder="admin@example.com"></div>
+          <button class="btn-primary" id="sendResetBtn"><i class="fas fa-paper-plane"></i> Send Reset Link</button>
+          <div class="login-error" id="forgotError"></div>
+          <div class="login-success" id="forgotSuccess"></div>
+          <div class="back-to-login" id="backToLoginFromForgot"><i class="fas fa-arrow-left"></i> Back to Login</div>
+        </div>
+
+        <!-- Reset Password Form -->
+        <div id="resetForm" class="reset-card">
+          <h2><i class="fas fa-lock"></i> Reset Password</h2>
+          <div class="subtitle">Enter your new password</div>
+          <div class="form-group"><label>New Password</label><input type="password" id="newPassword" placeholder="Enter new password"></div>
+          <div class="form-group"><label>Confirm Password</label><input type="password" id="confirmPassword" placeholder="Confirm new password"></div>
+          <button class="btn-primary" id="resetPasswordBtn"><i class="fas fa-save"></i> Reset Password</button>
+          <div class="login-error" id="resetError"></div>
+          <div class="login-success" id="resetSuccess"></div>
+          <div class="back-to-login" id="backToLoginFromReset"><i class="fas fa-arrow-left"></i> Back to Login</div>
+        </div>
       </div>
     </div>
 
@@ -917,7 +1006,8 @@
         technicalTeam: 'solitaire_technicalTeam',
         businessAssociates: 'solitaire_businessAssociates',
         feedEntries: 'solitaire_feedEntries',
-        docHistory: 'solitaire_docHistory'
+        docHistory: 'solitaire_docHistory',
+        resetTokens: 'solitaire_resetTokens'
       };
 
       function load(key, fallback) { try { const d = localStorage.getItem(key); return d ? JSON.parse(d) : fallback; } catch {
@@ -935,6 +1025,7 @@
       let businessAssociates = load(KEYS.businessAssociates, []);
       let feedEntries = load(KEYS.feedEntries, []);
       let docHistory = load(KEYS.docHistory, []);
+      let resetTokens = load(KEYS.resetTokens, {});
       let currentUser = null;
       let productionChart = null;
       let currentPeriod = 'week';
@@ -961,6 +1052,7 @@
         save(KEYS.businessAssociates, businessAssociates);
         save(KEYS.feedEntries, feedEntries);
         save(KEYS.docHistory, docHistory);
+        save(KEYS.resetTokens, resetTokens);
       }
 
       function addFeed(msg) {
@@ -1002,10 +1094,8 @@
           return d >= start && d <= end;
         });
 
-        // Group by date
         const labels = [];
         const counts = [];
-        const step = period === 'week' ? 1 : period === 'month' ? 1 : period === 'halfyear' ? 7 : 7;
         const maxPoints = period === 'week' ? 7 : period === 'month' ? 30 : period === 'halfyear' ? 26 : 52;
 
         let current = new Date(start);
@@ -1022,7 +1112,6 @@
         });
 
         const sortedKeys = Object.keys(temp).sort();
-        // Sample for display
         let sampledKeys = sortedKeys;
         if (sortedKeys.length > maxPoints) {
           const step2 = Math.ceil(sortedKeys.length / maxPoints);
@@ -1171,7 +1260,176 @@
         loginOverlay.classList.remove('hidden');
         loginError.textContent = '';
         adminPassword.value = '';
+        // Reset to login form view
+        showLoginForm();
         toast('🔐 Logged out');
+      });
+
+      // ================================================================
+      // FORGOT PASSWORD
+      // ================================================================
+      const loginForm = document.getElementById('loginForm');
+      const forgotForm = document.getElementById('forgotForm');
+      const resetForm = document.getElementById('resetForm');
+      const forgotEmail = document.getElementById('forgotEmail');
+      const forgotError = document.getElementById('forgotError');
+      const forgotSuccess = document.getElementById('forgotSuccess');
+      const resetError = document.getElementById('resetError');
+      const resetSuccess = document.getElementById('resetSuccess');
+      const newPassword = document.getElementById('newPassword');
+      const confirmPassword = document.getElementById('confirmPassword');
+
+      function showLoginForm() {
+        loginForm.style.display = 'block';
+        forgotForm.classList.remove('active');
+        resetForm.classList.remove('active');
+        loginError.textContent = '';
+        forgotError.textContent = '';
+        forgotSuccess.textContent = '';
+        resetError.textContent = '';
+        resetSuccess.textContent = '';
+        // Reset the password fields
+        newPassword.value = '';
+        confirmPassword.value = '';
+      }
+
+      function showForgotForm() {
+        loginForm.style.display = 'none';
+        forgotForm.classList.add('active');
+        resetForm.classList.remove('active');
+        forgotError.textContent = '';
+        forgotSuccess.textContent = '';
+        resetError.textContent = '';
+        resetSuccess.textContent = '';
+      }
+
+      function showResetForm() {
+        loginForm.style.display = 'none';
+        forgotForm.classList.remove('active');
+        resetForm.classList.add('active');
+        forgotError.textContent = '';
+        forgotSuccess.textContent = '';
+        resetError.textContent = '';
+        resetSuccess.textContent = '';
+      }
+
+      document.getElementById('forgotPasswordLink').addEventListener('click', function(e) {
+        e.preventDefault();
+        showForgotForm();
+      });
+
+      document.getElementById('backToLoginFromForgot').addEventListener('click', function() {
+        showLoginForm();
+      });
+
+      document.getElementById('backToLoginFromReset').addEventListener('click', function() {
+        showLoginForm();
+      });
+
+      // Send Reset Link
+      document.getElementById('sendResetBtn').addEventListener('click', function() {
+        const email = forgotEmail.value.trim().toLowerCase();
+        if (!email) { forgotError.textContent = '⚠️ Please enter your email address.'; return; }
+
+        const user = users[email];
+        if (!user) {
+          forgotError.textContent = '❌ No account found with this email.';
+          forgotSuccess.textContent = '';
+          return;
+        }
+
+        if (user.role !== 'owner') {
+          forgotError.textContent = '❌ This email is not an admin account.';
+          forgotSuccess.textContent = '';
+          return;
+        }
+
+        // Generate a reset token (simulated)
+        const token = 'reset_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+        resetTokens[email] = {
+          token: token,
+          expires: Date.now() + 3600000 // 1 hour expiry
+        };
+        persistAll();
+
+        // In a real app, you'd send an email. Here we show the reset link in the UI.
+        forgotError.textContent = '';
+        forgotSuccess.innerHTML = '✅ Reset link sent! <br><small style="color:#6a5f48;font-size:11px;">(Demo: <a href="#" id="simulatedResetLink" style="color:#c9a84c;">Click here to reset</a>)</small>';
+
+        document.getElementById('simulatedResetLink').addEventListener('click', function(e) {
+          e.preventDefault();
+          // Auto-fill the reset form
+          showResetForm();
+          // Store the email for reset
+          document.getElementById('resetForm').dataset.email = email;
+          toast('🔑 Reset mode activated for ' + email);
+        });
+
+        toast('📧 Reset link generated!');
+        addFeed('🔑 Password reset requested for ' + email);
+      });
+
+      // Reset Password
+      document.getElementById('resetPasswordBtn').addEventListener('click', function() {
+        const email = document.getElementById('resetForm').dataset.email;
+        const newPass = newPassword.value.trim();
+        const confirmPass = confirmPassword.value.trim();
+
+        if (!email) { resetError.textContent = '⚠️ Session expired. Please request a new reset link.'; return; }
+
+        if (!newPass || newPass.length < 6) {
+          resetError.textContent = '⚠️ Password must be at least 6 characters.';
+          resetSuccess.textContent = '';
+          return;
+        }
+
+        if (newPass !== confirmPass) {
+          resetError.textContent = '⚠️ Passwords do not match.';
+          resetSuccess.textContent = '';
+          return;
+        }
+
+        // Check if token is valid
+        const tokenData = resetTokens[email];
+        if (!tokenData || tokenData.expires < Date.now()) {
+          resetError.textContent = '❌ Reset token expired. Please request a new one.';
+          resetSuccess.textContent = '';
+          return;
+        }
+
+        // Update password
+        if (users[email]) {
+          users[email].password = newPass;
+          // Clear the reset token
+          delete resetTokens[email];
+          persistAll();
+          resetError.textContent = '';
+          resetSuccess.innerHTML = '✅ Password reset successfully! <br><span style="font-size:12px;color:#6a5f48;">You can now login with your new password.</span>';
+
+          // Auto-login after 2 seconds
+          setTimeout(function() {
+            adminEmail.value = email;
+            adminPassword.value = newPass;
+            showLoginForm();
+            toast('🔐 Password updated! Please login.');
+            doLogin();
+          }, 2000);
+
+          addFeed('🔐 Password reset for ' + email);
+        } else {
+          resetError.textContent = '❌ User not found.';
+        }
+      });
+
+      // Enter key support for forgot/reset forms
+      forgotEmail.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') document.getElementById('sendResetBtn').click();
+      });
+      newPassword.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') document.getElementById('resetPasswordBtn').click();
+      });
+      confirmPassword.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') document.getElementById('resetPasswordBtn').click();
       });
 
       // ================================================================
@@ -1609,7 +1867,7 @@
       window.__technicalTeam = technicalTeam;
       window.__businessAssociates = businessAssociates;
 
-      console.log('✅ SOLITAIRE Admin Panel loaded with charts');
+      console.log('✅ SOLITAIRE Admin Panel loaded with charts and password reset');
       console.log('📋 Leads:', leads.length);
 
     })();
