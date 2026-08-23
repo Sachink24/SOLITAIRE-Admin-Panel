@@ -10,9 +10,6 @@
   <!-- Chart.js for graphical presentation -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">
   </script>
-  <!-- Supabase JS SDK - live data source (leads, teams, feed, docs) -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js">
-  </script>
   <style>
     * {
       margin: 0;
@@ -856,7 +853,7 @@
     <!-- HEADER -->
     <div class="app-header">
       <h1><i class="fas fa-gem"></i> SOLITAIRE · Admin</h1>
-      <div class="user-badge"><i class="fas fa-user-shield"></i> <span id="adminName">Admin</span> <span id="syncStatus" style="font-size:9px;color:#6a5f48;margin-left:6px;"><i class="fas fa-circle-notch fa-spin"></i></span> <span class="logout" id="logoutBtn"><i class="fas fa-sign-out-alt"></i></span></div>
+      <div class="user-badge"><i class="fas fa-user-shield"></i> <span id="adminName">Admin</span> <span class="logout" id="logoutBtn"><i class="fas fa-sign-out-alt"></i></span></div>
     </div>
 
     <!-- TABS -->
@@ -898,12 +895,10 @@
             <button class="active" data-lb="ba">BA</button>
             <button data-lb="legal">Legal</button>
             <button data-lb="technical">Technical</button>
-            <button data-lb="credit">Credit</button>
           </div>
           <div class="lb-panel active" id="lb-ba"><div class="leaderboard" id="lbBAList"></div></div>
           <div class="lb-panel" id="lb-legal"><div class="leaderboard" id="lbLegalList"></div></div>
           <div class="lb-panel" id="lb-technical"><div class="leaderboard" id="lbTechList"></div></div>
-          <div class="lb-panel" id="lb-credit"><div class="leaderboard" id="lbCreditList"></div></div>
         </div>
 
         <div class="card">
@@ -914,7 +909,6 @@
         <div class="card">
           <div class="card-title"><i class="fas fa-file-export"></i> Quick Actions</div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="btn-sm blue" onclick="refreshFromSupabase()"><i class="fas fa-sync"></i> Refresh Data</button>
             <button class="btn-sm gold" onclick="exportAllLeads()"><i class="fas fa-file-excel"></i> Export All</button>
             <button class="btn-sm blue" onclick="openDocModal('provisional')"><i class="fas fa-file-pdf"></i> Provisional Sanction</button>
             <button class="btn-sm warning" onclick="openDocModal('invoice')"><i class="fas fa-file-invoice"></i> Invoice</button>
@@ -928,7 +922,7 @@
         <div class="card">
           <div class="card-title"><i class="fas fa-filter"></i> Filter</div>
           <div class="form-row">
-            <div class="form-group"><label>Status</label><select id="filterStatus"><option value="all">All</option></select></div>
+            <div class="form-group"><label>Status</label><select id="filterStatus"><option value="all">All</option><option value="New">New</option><option value="Legal Approved">Legal Approved</option><option value="Technical Approved">Technical Approved</option><option value="Approved">Approved</option><option value="Declined">Declined</option></select></div>
             <div class="form-group"><label>Search</label><input type="text" id="searchLead" placeholder="Name or phone..."></div>
           </div>
         </div>
@@ -945,7 +939,7 @@
           </div>
           <div class="form-row">
             <div class="form-group"><label>Phone</label><input type="tel" id="newMemberPhone" placeholder="+91 98765 43210"></div>
-            <div class="form-group"><label>Role</label><select id="newMemberRole"><option value="business">Business Associate</option><option value="legal">Legal Associate</option><option value="technical">Technical Associate</option><option value="credit">Credit Associate</option></select></div>
+            <div class="form-group"><label>Role</label><select id="newMemberRole"><option value="business">Business Associate</option><option value="legal">Legal Associate</option><option value="technical">Technical Associate</option></select></div>
           </div>
           <button class="btn-sm gold" id="addMemberBtn" style="width:100%;padding:10px;"><i class="fas fa-plus"></i> Add Member</button>
         </div>
@@ -956,10 +950,6 @@
         <div class="card">
           <div class="card-title"><i class="fas fa-tools"></i> Technical Team</div>
           <div id="technicalTeamList"></div>
-        </div>
-        <div class="card">
-          <div class="card-title"><i class="fas fa-coins"></i> Credit Team</div>
-          <div id="creditTeamList"></div>
         </div>
         <div class="card">
           <div class="card-title"><i class="fas fa-briefcase"></i> Business Associates</div>
@@ -1007,79 +997,69 @@
       'use strict';
 
       // ================================================================
-      // SUPABASE CONNECTION (live data — same project the associate-app writes to)
+      // STORAGE KEYS
       // ================================================================
-      const SUPABASE_URL = 'https://nbpvamrwzqrgoiwpadwc.supabase.co';
-      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5icHZhbXJ3enFyZ29pd3BhZHdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNTcwNDgsImV4cCI6MjEwMDgzMzA0OH0.2CQhyBhbQ7SYAXDuMqnO5qNhiIBpx4jxvDUtwyCGlpQ';
-      const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
-      });
+      const KEYS = {
+        leads: 'solitaire_leads',
+        users: 'solitaire_users',
+        legalTeam: 'solitaire_legalTeam',
+        technicalTeam: 'solitaire_technicalTeam',
+        businessAssociates: 'solitaire_businessAssociates',
+        feedEntries: 'solitaire_feedEntries',
+        docHistory: 'solitaire_docHistory',
+        resetTokens: 'solitaire_resetTokens'
+      };
 
-      const TEAM_TABLES = { ba: 'business_associates', legal: 'legal_team', technical: 'technical_team', credit: 'credit_team' };
-      const ROLE_TO_TYPE = { business: 'ba', legal: 'legal', technical: 'technical', credit: 'credit' };
+      function load(key, fallback) { try { const d = localStorage.getItem(key); return d ? JSON.parse(d) : fallback; } catch {
+          return fallback; } }
+
+      function save(key, data) { localStorage.setItem(key, JSON.stringify(data)); }
 
       // ================================================================
-      // STATE (populated live from Supabase — nothing here is fake/local anymore)
+      // STATE
       // ================================================================
-      let leads = [];
-      let businessAssociates = [];
-      let legalTeam = [];
-      let technicalTeam = [];
-      let creditTeam = [];
-      let feedEntries = [];
-      let docHistory = [];
-      let currentUser = null; // email of logged-in admin
-      let currentUserRow = null;
+      let leads = load(KEYS.leads, []);
+      let users = load(KEYS.users, {});
+      let legalTeam = load(KEYS.legalTeam, []);
+      let technicalTeam = load(KEYS.technicalTeam, []);
+      let businessAssociates = load(KEYS.businessAssociates, []);
+      let feedEntries = load(KEYS.feedEntries, []);
+      let docHistory = load(KEYS.docHistory, []);
+      let resetTokens = load(KEYS.resetTokens, {});
+      let currentUser = null;
       let productionChart = null;
       let currentPeriod = 'week';
       let currentLB = 'ba';
-      let realtimeChannel = null;
-      let pollTimer = null;
-      let refreshDebounce = null;
 
       // ================================================================
       // HELPERS
       // ================================================================
-      function escapeHtml(s) { if (!s && s !== 0) return ''; return String(s).replace(/[&<>"]/g, function(m) { return { '&': '&amp;',
+      function escapeHtml(s) { if (!s) return ''; return String(s).replace(/[&<>"]/g, function(m) { return { '&': '&amp;',
               '<': '&lt;', '>': '&gt;', '"': '&quot;' } [m] || m; }); }
 
       function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
         clearTimeout(t._tm); t._tm = setTimeout(function() { t.classList.remove('show'); }, 2500); }
 
-      function setSyncStatus(state, label) {
-        const el = document.getElementById('syncStatus');
-        if (!el) return;
-        if (state === 'syncing') el.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Syncing…';
-        else if (state === 'live') el.innerHTML = '<i class="fas fa-circle" style="color:#3ecf6e;"></i> Live';
-        else el.innerHTML = '<i class="fas fa-exclamation-triangle" style="color:#e05252;"></i> ' + (label || 'Sync error');
+      function getTeamName(email, team) { const arr = team === 'legal' ? legalTeam : team === 'technical' ? technicalTeam :
+          businessAssociates; const m = arr.find(function(a) { return a.email === email; }); return m ? m.name : email.split(
+          '@')[0]; }
+
+      function persistAll() {
+        save(KEYS.leads, leads);
+        save(KEYS.users, users);
+        save(KEYS.legalTeam, legalTeam);
+        save(KEYS.technicalTeam, technicalTeam);
+        save(KEYS.businessAssociates, businessAssociates);
+        save(KEYS.feedEntries, feedEntries);
+        save(KEYS.docHistory, docHistory);
+        save(KEYS.resetTokens, resetTokens);
       }
 
-      // Normalizes rows from tables whose columns aren't perfectly consistent
-      // (business_associates uses "NAME" and a "user id" column with a space).
-      function normalizeMember(row, type) {
-        return {
-          id: row.id,
-          name: type === 'ba' ? (row.NAME || row.name || '') : (row.name || ''),
-          email: row.email || '',
-          phone: row.phone || '',
-          status: row.status || 'pending'
-        };
-      }
-
-      function teamArrayFor(type) {
-        return type === 'legal' ? legalTeam : type === 'technical' ? technicalTeam : type === 'credit' ? creditTeam :
-          businessAssociates;
-      }
-
-      function getTeamName(email, team) {
-        if (!email) return '—';
-        const arr = teamArrayFor(team);
-        const m = arr.find(function(a) { return a.email === email; });
-        return m ? m.name : email.split('@')[0];
-      }
-
-      async function addFeed(msg) {
-        try { await sb.from('feed_entries').insert({ text: msg }); } catch (e) { console.warn('feed insert failed', e); }
+      function addFeed(msg) {
+        feedEntries.unshift({ time: new Date().toLocaleTimeString(), text: msg });
+        if (feedEntries.length > 50) feedEntries.pop();
+        persistAll();
+        renderDashboard();
       }
 
       // ================================================================
@@ -1110,11 +1090,12 @@
       function getProductionData(period) {
         const { start, end } = getDateRange(period);
         const filtered = leads.filter(function(l) {
-          if (!l.created_at) return false;
-          const d = new Date(l.created_at);
+          const d = new Date(l.createdAt);
           return d >= start && d <= end;
         });
 
+        const labels = [];
+        const counts = [];
         const maxPoints = period === 'week' ? 7 : period === 'month' ? 30 : period === 'halfyear' ? 26 : 52;
 
         let current = new Date(start);
@@ -1126,7 +1107,7 @@
         }
 
         filtered.forEach(function(l) {
-          const key = new Date(l.created_at).toISOString().slice(0, 10);
+          const key = new Date(l.createdAt).toISOString().slice(0, 10);
           if (temp[key] !== undefined) temp[key] = (temp[key] || 0) + 1;
         });
 
@@ -1143,20 +1124,19 @@
       }
 
       // ================================================================
-      // TOP PERFORMERS (BA / Legal / Technical / Credit)
+      // TOP PERFORMERS
       // ================================================================
-      function isApprovedLead(l) { return (l.stage || '').toUpperCase() === 'APPROVED'; }
-
       function getTopPerformers(teamType) {
-        const approved = leads.filter(isApprovedLead);
+        const approved = leads.filter(function(l) { return l.stage === 'Approved'; });
         const counts = {};
         approved.forEach(function(l) {
           let email = null;
-          if (teamType === 'ba') email = l.assigned_ba;
-          else if (teamType === 'legal') email = l.assigned_legal;
-          else if (teamType === 'technical') email = l.assigned_technical;
-          else if (teamType === 'credit') email = l.assigned_credit;
-          if (email) counts[email] = (counts[email] || 0) + 1;
+          if (teamType === 'ba') email = l.assignedBA;
+          else if (teamType === 'legal') email = l.assignedLegal;
+          else if (teamType === 'technical') email = l.assignedTechnical;
+          if (email) {
+            counts[email] = (counts[email] || 0) + 1;
+          }
         });
 
         const sorted = Object.entries(counts).sort(function(a, b) { return b[1] - a[1]; });
@@ -1168,10 +1148,13 @@
       }
 
       function renderLeaderboard() {
-        renderLBList('lbBAList', getTopPerformers('ba'));
-        renderLBList('lbLegalList', getTopPerformers('legal'));
-        renderLBList('lbTechList', getTopPerformers('technical'));
-        renderLBList('lbCreditList', getTopPerformers('credit'));
+        const baData = getTopPerformers('ba');
+        const legalData = getTopPerformers('legal');
+        const techData = getTopPerformers('technical');
+
+        renderLBList('lbBAList', baData);
+        renderLBList('lbLegalList', legalData);
+        renderLBList('lbTechList', techData);
       }
 
       function renderLBList(containerId, data) {
@@ -1198,12 +1181,13 @@
       // ================================================================
       function renderProductionChart(period) {
         const data = getProductionData(period);
-        const canvas = document.getElementById('productionChart');
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
+        const ctx = document.getElementById('productionChart').getContext('2d');
 
-        if (productionChart) productionChart.destroy();
+        if (productionChart) {
+          productionChart.destroy();
+        }
 
+        const isDark = true;
         const textColor = '#94a3b8';
         const gridColor = 'rgba(255,215,0,0.08)';
 
@@ -1224,19 +1208,26 @@
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              legend: { labels: { color: textColor, font: { size: 9 } } }
+              legend: {
+                labels: { color: textColor, font: { size: 9 } }
+              }
             },
             scales: {
-              x: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 8 }, maxTicksLimit: 12 } },
-              y: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 8 }, stepSize: 1 } }
+              x: {
+                grid: { color: gridColor },
+                ticks: { color: textColor, font: { size: 8 }, maxTicksLimit: 12 }
+              },
+              y: {
+                grid: { color: gridColor },
+                ticks: { color: textColor, font: { size: 8 }, stepSize: 1 }
+              }
             }
           }
         });
       }
 
       // ================================================================
-      // LOGIN (real Supabase Auth — required because every table's RLS
-      // policy only allows the 'authenticated' role, scoped by role)
+      // LOGIN
       // ================================================================
       const loginOverlay = document.getElementById('loginOverlay');
       const adminEmail = document.getElementById('adminEmail');
@@ -1246,63 +1237,36 @@
       const logoutBtn = document.getElementById('logoutBtn');
       const adminName = document.getElementById('adminName');
 
-      async function afterLogin(authUser) {
-        const { data, error } = await sb.from('users').select('*').eq('auth_user_id', authUser.id).single();
-        if (error || !data) {
-          loginError.textContent = '❌ No admin profile linked to this login.';
-          await sb.auth.signOut();
-          return;
-        }
-        const role = (data.role || '').toLowerCase();
-        if (role !== 'owner' && role !== 'admin') {
-          loginError.textContent = '❌ Access denied. Admin only.';
-          await sb.auth.signOut();
-          return;
-        }
-        currentUser = data.email;
-        currentUserRow = data;
-        loginOverlay.classList.add('hidden');
-        adminName.textContent = data.name || 'Admin';
-        toast('✅ Welcome, ' + (data.name || 'Admin'));
-        await refreshFromSupabase();
-        subscribeRealtime();
-        if (!pollTimer) pollTimer = setInterval(refreshFromSupabase, 45000);
-        addFeed('👑 Admin logged in');
-      }
-
-      async function doLogin() {
+      function doLogin() {
         const email = adminEmail.value.trim();
         const pass = adminPassword.value.trim();
         if (!email || !pass) { loginError.textContent = '⚠️ Please enter both email and password.'; return; }
-        loginError.textContent = '⏳ Signing in…';
-        const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
-        if (error || !data.user) {
-          loginError.textContent = '❌ ' + (error ? error.message : 'Invalid credentials.');
-          return;
-        }
-        loginError.textContent = '';
-        await afterLogin(data.user);
+        const user = users[email];
+        if (!user || user.password !== pass) { loginError.textContent = '❌ Invalid credentials.'; return; }
+        if (user.role !== 'owner') { loginError.textContent = '❌ Access denied. Admin only.'; return; }
+        currentUser = email;
+        loginOverlay.classList.add('hidden');
+        adminName.textContent = user.name || 'Admin';
+        toast('✅ Welcome, ' + (user.name || 'Admin'));
+        renderAll();
+        addFeed('👑 Admin logged in');
       }
 
       loginBtn.addEventListener('click', doLogin);
       adminPassword.addEventListener('keydown', function(e) { if (e.key === 'Enter') doLogin(); });
 
-      logoutBtn.addEventListener('click', async function() {
-        await sb.auth.signOut();
-        unsubscribeRealtime();
-        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      logoutBtn.addEventListener('click', function() {
         currentUser = null;
-        currentUserRow = null;
         loginOverlay.classList.remove('hidden');
         loginError.textContent = '';
         adminPassword.value = '';
+        // Reset to login form view
         showLoginForm();
         toast('🔐 Logged out');
       });
 
       // ================================================================
-      // FORGOT / RESET PASSWORD (real Supabase Auth reset email — no more
-      // simulated tokens)
+      // FORGOT PASSWORD
       // ================================================================
       const loginForm = document.getElementById('loginForm');
       const forgotForm = document.getElementById('forgotForm');
@@ -1324,6 +1288,7 @@
         forgotSuccess.textContent = '';
         resetError.textContent = '';
         resetSuccess.textContent = '';
+        // Reset the password fields
         newPassword.value = '';
         confirmPassword.value = '';
       }
@@ -1353,153 +1318,137 @@
         showForgotForm();
       });
 
-      document.getElementById('backToLoginFromForgot').addEventListener('click', function() { showLoginForm(); });
-      document.getElementById('backToLoginFromReset').addEventListener('click', function() { showLoginForm(); });
-
-      document.getElementById('sendResetBtn').addEventListener('click', async function() {
-        const email = forgotEmail.value.trim().toLowerCase();
-        if (!email) { forgotError.textContent = '⚠️ Please enter your email address.'; return; }
-        forgotError.textContent = '';
-        forgotSuccess.textContent = '⏳ Sending…';
-        const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
-        if (error) {
-          forgotSuccess.textContent = '';
-          forgotError.textContent = '❌ ' + error.message;
-          return;
-        }
-        forgotSuccess.innerHTML = '✅ If that email has an admin account, a password reset link has been sent to it. Open it on this device to set a new password.';
-        toast('📧 Reset email requested');
+      document.getElementById('backToLoginFromForgot').addEventListener('click', function() {
+        showLoginForm();
       });
 
-      document.getElementById('resetPasswordBtn').addEventListener('click', async function() {
+      document.getElementById('backToLoginFromReset').addEventListener('click', function() {
+        showLoginForm();
+      });
+
+      // Send Reset Link
+      document.getElementById('sendResetBtn').addEventListener('click', function() {
+        const email = forgotEmail.value.trim().toLowerCase();
+        if (!email) { forgotError.textContent = '⚠️ Please enter your email address.'; return; }
+
+        const user = users[email];
+        if (!user) {
+          forgotError.textContent = '❌ No account found with this email.';
+          forgotSuccess.textContent = '';
+          return;
+        }
+
+        if (user.role !== 'owner') {
+          forgotError.textContent = '❌ This email is not an admin account.';
+          forgotSuccess.textContent = '';
+          return;
+        }
+
+        // Generate a reset token (simulated)
+        const token = 'reset_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+        resetTokens[email] = {
+          token: token,
+          expires: Date.now() + 3600000 // 1 hour expiry
+        };
+        persistAll();
+
+        // In a real app, you'd send an email. Here we show the reset link in the UI.
+        forgotError.textContent = '';
+        forgotSuccess.innerHTML = '✅ Reset link sent! <br><small style="color:#6a5f48;font-size:11px;">(Demo: <a href="#" id="simulatedResetLink" style="color:#c9a84c;">Click here to reset</a>)</small>';
+
+        document.getElementById('simulatedResetLink').addEventListener('click', function(e) {
+          e.preventDefault();
+          // Auto-fill the reset form
+          showResetForm();
+          // Store the email for reset
+          document.getElementById('resetForm').dataset.email = email;
+          toast('🔑 Reset mode activated for ' + email);
+        });
+
+        toast('📧 Reset link generated!');
+        addFeed('🔑 Password reset requested for ' + email);
+      });
+
+      // Reset Password
+      document.getElementById('resetPasswordBtn').addEventListener('click', function() {
+        const email = document.getElementById('resetForm').dataset.email;
         const newPass = newPassword.value.trim();
         const confirmPass = confirmPassword.value.trim();
+
+        if (!email) { resetError.textContent = '⚠️ Session expired. Please request a new reset link.'; return; }
 
         if (!newPass || newPass.length < 6) {
           resetError.textContent = '⚠️ Password must be at least 6 characters.';
           resetSuccess.textContent = '';
           return;
         }
+
         if (newPass !== confirmPass) {
           resetError.textContent = '⚠️ Passwords do not match.';
           resetSuccess.textContent = '';
           return;
         }
-        const { data, error } = await sb.auth.updateUser({ password: newPass });
-        if (error) {
-          resetError.textContent = '❌ ' + error.message + ' (open the reset link from your email again if this session expired)';
+
+        // Check if token is valid
+        const tokenData = resetTokens[email];
+        if (!tokenData || tokenData.expires < Date.now()) {
+          resetError.textContent = '❌ Reset token expired. Please request a new one.';
           resetSuccess.textContent = '';
           return;
         }
-        resetError.textContent = '';
-        resetSuccess.innerHTML = '✅ Password updated! Logging you in…';
-        setTimeout(function() { showLoginForm(); if (data.user) afterLogin(data.user); }, 1500);
-      });
 
-      forgotEmail.addEventListener('keydown', function(e) { if (e.key === 'Enter') document.getElementById('sendResetBtn').click(); });
-      newPassword.addEventListener('keydown', function(e) { if (e.key === 'Enter') document.getElementById('resetPasswordBtn').click(); });
-      confirmPassword.addEventListener('keydown', function(e) { if (e.key === 'Enter') document.getElementById('resetPasswordBtn').click(); });
+        // Update password
+        if (users[email]) {
+          users[email].password = newPass;
+          // Clear the reset token
+          delete resetTokens[email];
+          persistAll();
+          resetError.textContent = '';
+          resetSuccess.innerHTML = '✅ Password reset successfully! <br><span style="font-size:12px;color:#6a5f48;">You can now login with your new password.</span>';
 
-      // A password-recovery link lands here with a recovery session already
-      // active — jump straight to the "set new password" screen.
-      sb.auth.onAuthStateChange(function(event) {
-        if (event === 'PASSWORD_RECOVERY') showResetForm();
-      });
+          // Auto-login after 2 seconds
+          setTimeout(function() {
+            adminEmail.value = email;
+            adminPassword.value = newPass;
+            showLoginForm();
+            toast('🔐 Password updated! Please login.');
+            doLogin();
+          }, 2000);
 
-      // ================================================================
-      // LIVE DATA LOAD (this replaces the old localStorage-only demo data —
-      // it's the fix for "data not populating from the associate app")
-      // ================================================================
-      async function refreshFromSupabase() {
-        setSyncStatus('syncing');
-        try {
-          const [leadsRes, baRes, legalRes, techRes, creditRes, feedRes, docRes] = await Promise.all([
-            sb.from('leads').select('*').order('created_at', { ascending: false }),
-            sb.from('business_associates').select('*'),
-            sb.from('legal_team').select('*'),
-            sb.from('technical_team').select('*'),
-            sb.from('credit_team').select('*'),
-            sb.from('feed_entries').select('*').order('time', { ascending: false }).limit(50),
-            sb.from('doc_history').select('*').order('date', { ascending: false }).limit(50)
-          ]);
-          const firstError = [leadsRes, baRes, legalRes, techRes, creditRes, feedRes, docRes].find(function(r) { return r.error; });
-          if (firstError) throw firstError.error;
-
-          leads = leadsRes.data || [];
-          businessAssociates = (baRes.data || []).map(function(r) { return normalizeMember(r, 'ba'); });
-          legalTeam = (legalRes.data || []).map(function(r) { return normalizeMember(r, 'legal'); });
-          technicalTeam = (techRes.data || []).map(function(r) { return normalizeMember(r, 'technical'); });
-          creditTeam = (creditRes.data || []).map(function(r) { return normalizeMember(r, 'credit'); });
-          feedEntries = feedRes.data || [];
-          docHistory = docRes.data || [];
-
-          populateStatusFilter();
-          renderAll();
-          setSyncStatus('live');
-        } catch (e) {
-          console.error('Supabase load failed:', e);
-          setSyncStatus('error', (e && e.message) ? e.message : 'Load failed');
-          toast('⚠️ Could not load live data: ' + ((e && e.message) || 'unknown error'));
+          addFeed('🔐 Password reset for ' + email);
+        } else {
+          resetError.textContent = '❌ User not found.';
         }
-      }
-      window.refreshFromSupabase = refreshFromSupabase;
+      });
 
-      function subscribeRealtime() {
-        if (realtimeChannel) return;
-        try {
-          realtimeChannel = sb.channel('admin-panel-live')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, debouncedRefresh)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'business_associates' }, debouncedRefresh)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'legal_team' }, debouncedRefresh)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'technical_team' }, debouncedRefresh)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'credit_team' }, debouncedRefresh)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'feed_entries' }, debouncedRefresh)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'doc_history' }, debouncedRefresh)
-            .subscribe();
-        } catch (e) { console.warn('Realtime unavailable, falling back to polling only.', e); }
-      }
-
-      function unsubscribeRealtime() {
-        if (realtimeChannel) { sb.removeChannel(realtimeChannel); realtimeChannel = null; }
-      }
-
-      function debouncedRefresh() {
-        clearTimeout(refreshDebounce);
-        refreshDebounce = setTimeout(refreshFromSupabase, 800);
-      }
-
-      function populateStatusFilter() {
-        const sel = document.getElementById('filterStatus');
-        if (!sel) return;
-        const cur = sel.value || 'all';
-        const stages = Array.from(new Set(leads.map(function(l) { return l.stage; }).filter(Boolean))).sort();
-        sel.innerHTML = '<option value="all">All</option>' + stages.map(function(s) {
-          return '<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + '</option>';
-        }).join('');
-        sel.value = (cur === 'all' || stages.indexOf(cur) !== -1) ? cur : 'all';
-      }
+      // Enter key support for forgot/reset forms
+      forgotEmail.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') document.getElementById('sendResetBtn').click();
+      });
+      newPassword.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') document.getElementById('resetPasswordBtn').click();
+      });
+      confirmPassword.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') document.getElementById('resetPasswordBtn').click();
+      });
 
       // ================================================================
       // RENDER: DASHBOARD
       // ================================================================
       function renderDashboard() {
         const total = leads.length;
-        const approved = leads.filter(isApprovedLead).length;
-        const declined = leads.filter(function(l) { return ['DECLINED', 'REJECTED'].indexOf((l.stage || '').toUpperCase()) !== -1; }).length;
-        const pending = total - approved - declined;
+        const approved = leads.filter(function(l) { return l.stage === 'Approved'; }).length;
+        const pending = leads.filter(function(l) { return l.stage !== 'Approved' && l.stage !== 'Declined'; }).length;
         document.getElementById('statLeads').textContent = total;
         document.getElementById('statApproved').textContent = approved;
         document.getElementById('statPending').textContent = pending;
 
         const feed = document.getElementById('recentFeed');
-        if (feedEntries.length === 0) { feed.innerHTML = '<div style="color:#6a5f48;">No activity yet</div>'; }
-        else {
-          feed.innerHTML = feedEntries.slice(0, 10).map(function(f) {
-            const t = f.time ? new Date(f.time).toLocaleString() : '';
-            return '<div style="padding:4px 0; border-bottom:1px solid rgba(255,215,0,0.04);color:#b8aa8a;font-size:12px;">' +
-              escapeHtml(t) + ' · ' + escapeHtml(f.text) + '</div>';
-          }).join('');
-        }
+        if (feedEntries.length === 0) { feed.innerHTML = '<div style="color:#6a5f48;">No activity yet</div>'; return; }
+        feed.innerHTML = feedEntries.slice(0, 10).map(function(f) {
+          return '<div style="padding:4px 0; border-bottom:1px solid rgba(255,215,0,0.04);color:#b8aa8a;font-size:12px;">' +
+            escapeHtml(f.time) + ' · ' + escapeHtml(f.text) + '</div>';
+        }).join('');
 
         renderProductionChart(currentPeriod);
         renderLeaderboard();
@@ -1515,10 +1464,8 @@
 
         let filtered = leads;
         if (statusFilter !== 'all') filtered = filtered.filter(function(l) { return l.stage === statusFilter; });
-        if (search) filtered = filtered.filter(function(l) {
-          const b = l.borrower || {};
-          return (b.name || '').toLowerCase().includes(search) || (b.phone || '').includes(search);
-        });
+        if (search) filtered = filtered.filter(function(l) { return l.borrower.name.toLowerCase().includes(search) || l
+            .borrower.phone.includes(search); });
 
         if (filtered.length === 0) {
           container.innerHTML = '<div style="color:#6a5f48;text-align:center;padding:20px;">No leads found</div>';
@@ -1526,16 +1473,14 @@
         }
 
         container.innerHTML = filtered.map(function(l) {
-          const b = l.borrower || {};
-          const stageUpper = (l.stage || '').toUpperCase();
-          const statusClass = stageUpper === 'APPROVED' ? 'approved' : (stageUpper === 'DECLINED' || stageUpper === 'REJECTED') ? 'declined' : 'pending';
+          const statusClass = l.stage === 'Approved' ? 'approved' : l.stage === 'Declined' ? 'declined' : 'pending';
           return '<div class="lead-row" data-id="' + l.id + '">' +
-            '<div class="lead-info"><span class="name">' + escapeHtml(b.name || 'Unnamed') + '</span>' +
-            '<span class="meta">' + escapeHtml(b.phone || '—') + ' · ' + escapeHtml(l.loan_type || '—') + ' · ₹' + (
-              (l.loan_amount || 0) / 100000).toFixed(1) + 'L</span>' +
-            '<span style="font-size:10px;color:#6a5f48;">⚖️ ' + escapeHtml(l.legal_status || 'pending') + '  🔧 ' +
-            escapeHtml(l.technical_status || 'pending') + '  💰 ' + escapeHtml(l.credit_status || 'pending') +
-            '  📤 ' + (l.legal_submitted ? 'L' : '') + (l.technical_submitted ? 'T' : '') + (l.credit_submitted ? 'C' : '') + '</span></div>' +
+            '<div class="lead-info"><span class="name">' + escapeHtml(l.borrower.name) + '</span>' +
+            '<span class="meta">' + escapeHtml(l.borrower.phone) + ' · ' + escapeHtml(l.loanType) + ' · ₹' + (l
+              .loanAmount / 100000).toFixed(1) + 'L</span>' +
+            '<span style="font-size:10px;color:#6a5f48;">⚖️ ' + (l.legalStatus || 'pending') + '  🔧 ' + (l
+              .technicalStatus || 'pending') + '  📤 ' + (l.legalSubmitted ? 'L' : '') + (l.technicalSubmitted ?
+              'T' : '') + '</span></div>' +
             '<div><span class="lead-status ' + statusClass + '">' + escapeHtml(l.stage || 'New') + '</span>' +
             '<div style="margin-top:4px;display:flex;gap:4px;">' +
             '<button class="btn-sm blue" onclick="viewLead(' + l.id + ')"><i class="fas fa-eye"></i></button>' +
@@ -1547,7 +1492,8 @@
         container.querySelectorAll('.lead-row').forEach(function(row) {
           row.addEventListener('click', function(e) {
             if (e.target.closest('button')) return;
-            viewLead(parseInt(this.dataset.id, 10));
+            const id = parseInt(this.dataset.id);
+            viewLead(id);
           });
         });
       }
@@ -1558,29 +1504,29 @@
       function renderTeam() {
         function renderList(arr, type) {
           if (arr.length === 0) return '<div style="color:#6a5f48;font-size:12px;padding:8px 0;">No members</div>';
-          return arr.map(function(m) {
+          return arr.map(function(m, idx) {
             const statusClass = m.status === 'active' ? 'badge-active' : m.status === 'terminated' ?
               'badge-terminated' : 'badge-pending';
-            const statusLabel = m.status === 'active' ? 'Active' : m.status === 'terminated' ? 'Terminated' : 'Pending';
+            const statusLabel = m.status === 'active' ? 'Active' : m.status === 'terminated' ? 'Terminated' :
+              'Pending';
             return '<div class="member-item">' +
               '<div class="info"><span class="name">' + escapeHtml(m.name) + '</span><span class="email">' +
               escapeHtml(m.email) + ' · ' + escapeHtml(m.phone || '') + '</span></div>' +
               '<div class="actions"><span class="badge ' + statusClass + '" style="font-size:8px;padding:1px 8px;">' +
               statusLabel + '</span>' +
               (m.status === 'pending' ? '<button class="btn-sm success" onclick="approveMember(\'' + type + '\',' +
-                m.id + ')"><i class="fas fa-check"></i></button>' : '') +
+                idx + ')"><i class="fas fa-check"></i></button>' : '') +
               (m.status === 'active' ? '<button class="btn-sm danger" onclick="terminateMember(\'' + type + '\',' +
-                m.id + ')"><i class="fas fa-ban"></i></button>' : '') +
+                idx + ')"><i class="fas fa-ban"></i></button>' : '') +
               (m.status === 'terminated' ? '<button class="btn-sm gold" onclick="reactivateMember(\'' + type +
-                '\',' + m.id + ')"><i class="fas fa-undo"></i></button>' : '') +
-              '<button class="btn-sm danger" onclick="removeMember(\'' + type + '\',' + m.id +
+                '\',' + idx + ')"><i class="fas fa-undo"></i></button>' : '') +
+              '<button class="btn-sm danger" onclick="removeMember(\'' + type + '\',' + idx +
               ')"><i class="fas fa-times"></i></button>' +
               '</div></div>';
           }).join('');
         }
         document.getElementById('legalTeamList').innerHTML = renderList(legalTeam, 'legal');
         document.getElementById('technicalTeamList').innerHTML = renderList(technicalTeam, 'technical');
-        document.getElementById('creditTeamList').innerHTML = renderList(creditTeam, 'credit');
         document.getElementById('baTeamList').innerHTML = renderList(businessAssociates, 'ba');
       }
 
@@ -1589,12 +1535,13 @@
       // ================================================================
       function renderDocs() {
         const container = document.getElementById('docHistory');
-        if (docHistory.length === 0) { container.innerHTML = '<div style="color:#6a5f48;font-size:12px;">No documents generated yet.</div>'; return; }
-        container.innerHTML = docHistory.map(function(d) {
+        if (docHistory.length === 0) { container.innerHTML =
+          '<div style="color:#6a5f48;font-size:12px;">No documents generated yet.</div>'; return; }
+        container.innerHTML = docHistory.slice().reverse().map(function(d) {
           return '<div style="padding:6px 0;border-bottom:1px solid rgba(255,215,0,0.04);font-size:12px;color:#b8aa8a;">' +
-            '<strong style="color:#c9a84c;">' + escapeHtml((d.type || '').toUpperCase()) + '</strong> · ' + escapeHtml(d
-              .lead_name || '—') +
-            ' <span style="color:#6a5f48;">' + (d.date ? new Date(d.date).toLocaleString() : '') + '</span>' +
+            '<strong style="color:#c9a84c;">' + escapeHtml(d.type.toUpperCase()) + '</strong> · ' + escapeHtml(d
+              .leadName || '—') +
+            ' <span style="color:#6a5f48;">' + new Date(d.date).toLocaleString() + '</span>' +
             '</div>';
         }).join('');
       }
@@ -1610,66 +1557,79 @@
       }
 
       // ================================================================
-      // TEAM ACTIONS — all write straight to Supabase, then re-sync
+      // TEAM ACTIONS
       // ================================================================
-      async function updateMemberStatus(type, id, status, verb) {
-        const arr = teamArrayFor(type);
-        const member = arr.find(function(m) { return m.id === id; });
+      window.approveMember = function(type, idx) {
+        const arr = type === 'legal' ? legalTeam : type === 'technical' ? technicalTeam : businessAssociates;
+        const member = arr[idx];
         if (!member) return;
-        const table = TEAM_TABLES[type];
-        const { error } = await sb.from(table).update({ status: status }).eq('id', id);
-        if (error) { toast('❌ ' + error.message); return; }
-        if (member.email) { try { await sb.from('users').update({ status: status }).eq('email', member.email); } catch (e) {} }
-        await addFeed(verb + ' ' + member.name + ' (' + type + ')');
-        toast(verb + ' ' + member.name);
-        await refreshFromSupabase();
-      }
-
-      window.approveMember = function(type, id) { updateMemberStatus(type, id, 'active', '✅ Approved'); };
-      window.terminateMember = function(type, id) { if (confirm('Terminate this member?')) updateMemberStatus(type, id, 'terminated', '⛔ Terminated'); };
-      window.reactivateMember = function(type, id) { updateMemberStatus(type, id, 'active', '🔄 Reactivated'); };
-
-      window.removeMember = async function(type, id) {
-        if (!confirm('Remove this member permanently?')) return;
-        const arr = teamArrayFor(type);
-        const member = arr.find(function(m) { return m.id === id; });
-        if (!member) return;
-        const table = TEAM_TABLES[type];
-        const { error } = await sb.from(table).delete().eq('id', id);
-        if (error) { toast('❌ ' + error.message); return; }
-        if (member.email) { try { await sb.from('users').delete().eq('email', member.email); } catch (e) {} }
-        await addFeed('🗑️ ' + member.name + ' (' + type + ') removed');
-        toast('🗑️ ' + member.name + ' removed');
-        await refreshFromSupabase();
+        member.status = 'active';
+        const user = users[member.email];
+        if (user) user.status = 'active';
+        persistAll();
+        addFeed('✅ ' + member.name + ' (' + type + ') approved');
+        renderAll();
+        toast('✅ ' + member.name + ' approved');
       };
 
-      document.getElementById('addMemberBtn').addEventListener('click', async function() {
+      window.terminateMember = function(type, idx) {
+        if (!confirm('Terminate this member?')) return;
+        const arr = type === 'legal' ? legalTeam : type === 'technical' ? technicalTeam : businessAssociates;
+        const member = arr[idx];
+        if (!member) return;
+        member.status = 'terminated';
+        const user = users[member.email];
+        if (user) user.status = 'terminated';
+        persistAll();
+        addFeed('⛔ ' + member.name + ' (' + type + ') terminated');
+        renderAll();
+        toast('⛔ ' + member.name + ' terminated');
+      };
+
+      window.reactivateMember = function(type, idx) {
+        const arr = type === 'legal' ? legalTeam : type === 'technical' ? technicalTeam : businessAssociates;
+        const member = arr[idx];
+        if (!member) return;
+        member.status = 'active';
+        const user = users[member.email];
+        if (user) user.status = 'active';
+        persistAll();
+        addFeed('🔄 ' + member.name + ' (' + type + ') reactivated');
+        renderAll();
+        toast('🔄 ' + member.name + ' reactivated');
+      };
+
+      window.removeMember = function(type, idx) {
+        if (!confirm('Remove this member permanently?')) return;
+        const arr = type === 'legal' ? legalTeam : type === 'technical' ? technicalTeam : businessAssociates;
+        const member = arr[idx];
+        if (!member) return;
+        arr.splice(idx, 1);
+        delete users[member.email];
+        persistAll();
+        addFeed('🗑️ ' + member.name + ' (' + type + ') removed');
+        renderAll();
+        toast('🗑️ ' + member.name + ' removed');
+      };
+
+      document.getElementById('addMemberBtn').addEventListener('click', function() {
         const name = document.getElementById('newMemberName').value.trim();
         const email = document.getElementById('newMemberEmail').value.trim().toLowerCase();
         const phone = document.getElementById('newMemberPhone').value.trim();
-        const role = document.getElementById('newMemberRole').value; // business | legal | technical | credit
+        const role = document.getElementById('newMemberRole').value;
         if (!name || !email || !phone) { toast('⚠️ All fields required'); return; }
-
-        const type = ROLE_TO_TYPE[role] || 'ba';
-        const table = TEAM_TABLES[type];
-        const payload = type === 'ba' ? { NAME: name, email: email, phone: phone, status: 'pending' } :
-          { name: name, email: email, phone: phone, status: 'pending' };
-
-        const { error: teamErr } = await sb.from(table).insert(payload);
-        if (teamErr) { toast('❌ ' + teamErr.message); return; }
-
-        // Best-effort profile row so the name/role shows up across the system.
-        // Note: this does NOT create their Supabase Auth login — that still
-        // needs to be created (dashboard or an admin API) and linked via
-        // auth_user_id before they can actually sign in to the associate-app.
-        try { await sb.from('users').insert({ email: email, role: role, name: name, mobile: phone, status: 'pending' }); } catch (e) {}
-
+        if (users[email]) { toast('⚠️ Email already registered'); return; }
+        users[email] = { password: 'Password@123', role: role, name: name, mobile: phone, status: 'pending' };
+        const newMember = { id: Date.now(), name: name, email: email, phone: phone, status: 'pending' };
+        if (role === 'legal') { legalTeam.push(newMember); } else if (role === 'technical') { technicalTeam.push(
+            newMember); } else { businessAssociates.push(newMember); }
+        persistAll();
         document.getElementById('newMemberName').value = '';
         document.getElementById('newMemberEmail').value = '';
         document.getElementById('newMemberPhone').value = '';
-        await addFeed('➕ Added ' + name + ' as ' + role);
-        toast('✅ ' + name + ' added as ' + role + ' (pending) — set up their Auth login separately');
-        await refreshFromSupabase();
+        addFeed('➕ Added ' + name + ' as ' + role);
+        renderAll();
+        toast('✅ ' + name + ' added as ' + role);
       });
 
       // ================================================================
@@ -1678,97 +1638,84 @@
       window.viewLead = function(id) {
         const lead = leads.find(function(l) { return l.id === id; });
         if (!lead) return;
-        const b = lead.borrower || {};
-        toast('📋 Lead #' + lead.id + ' — ' + (b.name || 'Unnamed'));
+        toast('📋 Lead #' + lead.id + ' — ' + lead.borrower.name);
         const modal = document.getElementById('modalOverlay');
         document.getElementById('modalTitle').innerHTML = '<i class="fas fa-user"></i> Lead #' + lead.id;
         const body = document.getElementById('modalBody');
         body.innerHTML = '<div style="font-size:13px;color:#c8bca8;line-height:1.6;">' +
-          '<div><strong style="color:#c9a84c;">Name:</strong> ' + escapeHtml(b.name || '—') + '</div>' +
-          '<div><strong style="color:#c9a84c;">Phone:</strong> ' + escapeHtml(b.phone || '—') + '</div>' +
-          '<div><strong style="color:#c9a84c;">Email:</strong> ' + escapeHtml(b.email || '—') + '</div>' +
-          '<div><strong style="color:#c9a84c;">Loan:</strong> ' + escapeHtml(lead.loan_type || '—') + ' · ₹' + (
-            (lead.loan_amount || 0) / 100000).toFixed(1) + 'L</div>' +
-          '<div><strong style="color:#c9a84c;">Credit Grade:</strong> ' + escapeHtml(lead.credit || '—') + '</div>' +
+          '<div><strong style="color:#c9a84c;">Name:</strong> ' + escapeHtml(lead.borrower.name) + '</div>' +
+          '<div><strong style="color:#c9a84c;">Phone:</strong> ' + escapeHtml(lead.borrower.phone) + '</div>' +
+          '<div><strong style="color:#c9a84c;">Email:</strong> ' + escapeHtml(lead.borrower.email || '—') + '</div>' +
+          '<div><strong style="color:#c9a84c;">Loan:</strong> ' + escapeHtml(lead.loanType) + ' · ₹' + (lead
+            .loanAmount / 100000).toFixed(1) + 'L</div>' +
+          '<div><strong style="color:#c9a84c;">Credit:</strong> ' + escapeHtml(lead.credit) + '</div>' +
           '<div><strong style="color:#c9a84c;">Stage:</strong> ' + escapeHtml(lead.stage || 'New') + '</div>' +
-          '<div><strong style="color:#c9a84c;">Legal:</strong> ' + escapeHtml(lead.legal_status || 'pending') + (lead
-            .legal_submitted ? ' 📤' : '') + '</div>' +
-          '<div><strong style="color:#c9a84c;">Technical:</strong> ' + escapeHtml(lead.technical_status || 'pending') +
-          (lead.technical_submitted ? ' 📤' : '') + '</div>' +
-          '<div><strong style="color:#c9a84c;">Credit Desk:</strong> ' + escapeHtml(lead.credit_status || 'pending') +
-          (lead.credit_submitted ? ' 📤' : '') + '</div>' +
-          (lead.credit_loan_amount ? '<div><strong style="color:#c9a84c;">Credit-Approved Amount:</strong> ₹' + (
-            lead.credit_loan_amount / 100000).toFixed(1) + 'L' + (lead.credit_roi ? ' @ ' + lead.credit_roi + '%' : '') + '</div>' : '') +
-          (lead.assigned_ba ? '<div><strong style="color:#c9a84c;">BA:</strong> ' + escapeHtml(getTeamName(lead
-            .assigned_ba, 'ba')) + '</div>' : '') +
-          (lead.assigned_legal ? '<div><strong style="color:#c9a84c;">Legal:</strong> ' + escapeHtml(getTeamName(lead
-            .assigned_legal, 'legal')) + '</div>' : '') +
-          (lead.assigned_technical ? '<div><strong style="color:#c9a84c;">Tech:</strong> ' + escapeHtml(getTeamName(
-            lead.assigned_technical, 'technical')) + '</div>' : '') +
-          (lead.assigned_credit ? '<div><strong style="color:#c9a84c;">Credit:</strong> ' + escapeHtml(getTeamName(
-            lead.assigned_credit, 'credit')) + '</div>' : '') +
+          '<div><strong style="color:#c9a84c;">Legal:</strong> ' + escapeHtml(lead.legalStatus || 'pending') + (lead
+            .legalSubmitted ? ' 📤' : '') + '</div>' +
+          '<div><strong style="color:#c9a84c;">Technical:</strong> ' + escapeHtml(lead.technicalStatus || 'pending') +
+          (lead.technicalSubmitted ? ' 📤' : '') + '</div>' +
+          (lead.assignedBA ? '<div><strong style="color:#c9a84c;">BA:</strong> ' + escapeHtml(getTeamName(lead
+            .assignedBA, 'ba')) + '</div>' : '') +
+          (lead.assignedLegal ? '<div><strong style="color:#c9a84c;">Legal:</strong> ' + escapeHtml(getTeamName(lead
+            .assignedLegal, 'legal')) + '</div>' : '') +
+          (lead.assignedTechnical ? '<div><strong style="color:#c9a84c;">Tech:</strong> ' + escapeHtml(getTeamName(
+            lead.assignedTechnical, 'technical')) + '</div>' : '') +
           '</div>';
         modal.classList.add('show');
         document.getElementById('modalCopyBtn').onclick = function() { navigator.clipboard.writeText(body.innerText)
           .then(function() { toast('📋 Copied'); }); };
-        document.getElementById('modalDownloadBtn').onclick = function() {
-          const blob = new Blob([body.innerText], { type: 'text/plain' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url; a.download = 'Lead_' + lead.id + '.txt'; a.click();
-          URL.revokeObjectURL(url);
-        };
-        document.getElementById('modalWhatsAppBtn').onclick = function() {
-          const phone = (b.phone || '').replace(/[^0-9]/g, '');
-          if (!phone) { toast('⚠️ No phone number available'); return; }
-          const msg = 'SOLITAIRE Lead #' + lead.id + '\n' + body.innerText;
-          window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
-        };
+        document.getElementById('modalDownloadBtn').onclick = function() { const blob = new Blob([body.innerText], {
+            type: 'text/plain'
+          }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url;
+          a.download = 'Lead_' + lead.id + '.txt'; a.click();
+          URL.revokeObjectURL(url); };
+        document.getElementById('modalWhatsAppBtn').onclick = function() { const phone = lead.borrower.phone.replace(
+            /[^0-9]/g, ''); const msg = 'SOLITAIRE Lead #' + lead.id + '\n' + body.innerText; window.open(
+            'https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank'); };
       };
 
-      window.editLeadFromAdmin = async function(id) {
+      window.editLeadFromAdmin = function(id) {
         const lead = leads.find(function(l) { return l.id === id; });
         if (!lead) return;
-        const b = lead.borrower || {};
-        const newStage = prompt('Update stage for ' + (b.name || 'this lead') + ':\nCurrent: ' + lead.stage +
-          '\n\nEnter new stage (e.g. New, KYC, Legal Submitted, Technical Submitted, Credit Submitted, APPROVED, DECLINED):', lead.stage);
-        if (!newStage || newStage === lead.stage) return;
-        const patch = { stage: newStage };
-        const su = newStage.toUpperCase();
-        if (su === 'APPROVED') patch.admin_status = 'approved';
-        if (su === 'DECLINED' || su === 'REJECTED') patch.admin_status = 'declined';
-        const { error } = await sb.from('leads').update(patch).eq('id', id);
-        if (error) { toast('❌ ' + error.message); return; }
-        await addFeed('✏️ Lead ' + (b.name || id) + ' stage updated to ' + newStage);
-        toast('✅ Stage updated to ' + newStage);
-        await refreshFromSupabase();
+        const newStage = prompt('Update stage for ' + lead.borrower.name + ':\nCurrent: ' + lead.stage +
+          '\nEnter new stage (New, Legal Approved, Technical Approved, Approved, Declined):', lead.stage);
+        if (newStage && newStage !== lead.stage) {
+          lead.stage = newStage;
+          if (newStage === 'Approved') lead.adminStatus = 'approved';
+          if (newStage === 'Declined') lead.adminStatus = 'declined';
+          persistAll();
+          addFeed('✏️ Lead ' + lead.borrower.name + ' stage updated to ' + newStage);
+          renderAll();
+          toast('✅ Stage updated to ' + newStage);
+        }
       };
 
-      window.deleteLead = async function(id) {
+      window.deleteLead = function(id) {
         if (!confirm('Delete this lead permanently?')) return;
         const lead = leads.find(function(l) { return l.id === id; });
         if (!lead) return;
-        const b = lead.borrower || {};
-        const { error } = await sb.from('leads').delete().eq('id', id);
-        if (error) { toast('❌ ' + error.message); return; }
-        await addFeed('🗑️ Lead ' + (b.name || id) + ' deleted');
+        leads = leads.filter(function(l) { return l.id !== id; });
+        persistAll();
+        addFeed('🗑️ Lead ' + lead.borrower.name + ' deleted');
+        renderAll();
         toast('🗑️ Lead deleted');
-        await refreshFromSupabase();
       };
 
       // ================================================================
       // DOCUMENT GENERATION
       // ================================================================
-      window.openDocModal = async function(type) {
+      let docTypeCache = '';
+
+      window.openDocModal = function(type) {
+        docTypeCache = type;
         const modal = document.getElementById('modalOverlay');
         document.getElementById('modalTitle').innerHTML = '<i class="fas fa-file"></i> ' + type.toUpperCase();
         const body = document.getElementById('modalBody');
 
-        const latest = leads.length ? leads[0] : null;
-        const b = latest ? (latest.borrower || {}) : {};
-        const name = latest ? (b.name || '[Borrower Name]') : '[Borrower Name]';
-        const phone = latest ? (b.phone || '[Phone]') : '[Phone]';
-        const amount = latest ? '₹' + ((latest.loan_amount || 0) / 100000).toFixed(1) + 'L' : '[Amount]';
+        const latest = leads.length ? leads[leads.length - 1] : null;
+        const name = latest ? latest.borrower.name : '[Borrower Name]';
+        const phone = latest ? latest.borrower.phone : '[Phone]';
+        const amount = latest ? '₹' + (latest.loanAmount / 100000).toFixed(1) + 'L' : '[Amount]';
         const today = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
         let content = '';
@@ -1802,23 +1749,20 @@
           const blob = new Blob([window._docContent], { type: 'text/plain' });
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
-          a.href = url; a.download = type + '_' + Date.now() + '.txt'; a.click();
+          a.href = url;
+          a.download = type + '_' + Date.now() + '.txt';
+          a.click();
           URL.revokeObjectURL(url);
         };
         document.getElementById('modalWhatsAppBtn').onclick = function() {
-          const phone = window._docLead ? ((window._docLead.borrower || {}).phone || '').replace(/[^0-9]/g, '') : '';
+          const phone = window._docLead ? window._docLead.borrower.phone.replace(/[^0-9]/g, '') : '';
           if (!phone) { toast('⚠️ No phone number available'); return; }
           window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(window._docContent), '_blank');
         };
 
-        const { error } = await sb.from('doc_history').insert({
-          type: type,
-          lead_name: latest ? (b.name || null) : null,
-          lead_id: latest ? latest.id : null,
-          uploaded_by: currentUser
-        });
-        if (error) console.warn('doc_history insert failed', error);
-        await refreshFromSupabase();
+        docHistory.push({ type: type, leadName: latest ? latest.borrower.name : '—', date: new Date().toISOString() });
+        persistAll();
+        renderDocs();
       };
 
       document.getElementById('closeModal').addEventListener('click', function() {
@@ -1834,24 +1778,19 @@
       window.exportAllLeads = function() {
         if (leads.length === 0) { toast('⚠️ No leads to export'); return; }
         const data = leads.map(function(l) {
-          const b = l.borrower || {};
           return {
             'ID': l.id,
-            'Name': b.name || '',
-            'Phone': b.phone || '',
-            'Email': b.email || '',
-            'Loan Type': l.loan_type,
-            'Loan Amount': l.loan_amount,
-            'Credit Grade': l.credit,
+            'Name': l.borrower.name,
+            'Phone': l.borrower.phone,
+            'Email': l.borrower.email || '',
+            'Loan Type': l.loanType,
+            'Loan Amount': l.loanAmount,
+            'Credit': l.credit,
             'Stage': l.stage,
-            'Legal Status': l.legal_status || 'pending',
-            'Technical Status': l.technical_status || 'pending',
-            'Credit Status': l.credit_status || 'pending',
-            'Assigned BA': l.assigned_ba ? getTeamName(l.assigned_ba, 'ba') : '',
-            'Assigned Legal': l.assigned_legal ? getTeamName(l.assigned_legal, 'legal') : '',
-            'Assigned Technical': l.assigned_technical ? getTeamName(l.assigned_technical, 'technical') : '',
-            'Assigned Credit': l.assigned_credit ? getTeamName(l.assigned_credit, 'credit') : '',
-            'Created': l.created_at ? new Date(l.created_at).toLocaleDateString() : ''
+            'Legal Status': l.legalStatus || 'pending',
+            'Technical Status': l.technicalStatus || 'pending',
+            'Assigned BA': l.assignedBA ? getTeamName(l.assignedBA, 'ba') : '',
+            'Created': new Date(l.createdAt).toLocaleDateString()
           };
         });
         const wb = XLSX.utils.book_new();
@@ -1897,7 +1836,10 @@
           const tab = this.dataset.tab;
           document.querySelectorAll('.tab-pane').forEach(function(p) { p.classList.remove('active'); });
           document.getElementById('tab-' + tab).classList.add('active');
-          if (tab === 'dashboard') setTimeout(function() { renderProductionChart(currentPeriod); }, 100);
+          // Re-render chart if switching to dashboard
+          if (tab === 'dashboard') {
+            setTimeout(function() { renderProductionChart(currentPeriod); }, 100);
+          }
         });
       });
 
@@ -1908,23 +1850,28 @@
       document.getElementById('searchLead').addEventListener('input', renderLeads);
 
       // ================================================================
-      // INIT — resume an existing Supabase Auth session if there is one
+      // INIT
       // ================================================================
-      (async function init() {
-        setSyncStatus('syncing');
-        const { data: { session } } = await sb.auth.getSession();
-        if (session && session.user) {
-          await afterLogin(session.user);
-        } else {
-          setSyncStatus('error', 'Not signed in');
-        }
-      })();
+      if (!users['sachinkale241981@gmail.com']) {
+        users['sachinkale241981@gmail.com'] = { password: 'Password@123', role: 'owner', name: 'Admin',
+          mobile: '8779023084', status: 'active' };
+        persistAll();
+      }
 
-      console.log('✅ SOLITAIRE Admin Panel — live Supabase mode (BA / Legal / Technical / Credit)');
+      renderAll();
+
+      // Expose for debugging
+      window.__leads = leads;
+      window.__users = users;
+      window.__legalTeam = legalTeam;
+      window.__technicalTeam = technicalTeam;
+      window.__businessAssociates = businessAssociates;
+
+      console.log('✅ SOLITAIRE Admin Panel loaded with charts and password reset');
+      console.log('📋 Leads:', leads.length);
 
     })();
   </script>
-
 
 </body>
 </html>
