@@ -815,8 +815,8 @@
         <div id="loginForm">
           <h2><i class="fas fa-gem"></i> SOLITAIRE</h2>
           <div class="subtitle">Admin Panel · Secure Control</div>
-          <div class="form-group"><label>Admin Email</label><input type="text" id="adminEmail" value="sachinkale241981@gmail.com"></div>
-          <div class="form-group"><label>Password</label><input type="password" id="adminPassword" value="Password@123"></div>
+          <div class="form-group"><label>Admin Email</label><input type="text" id="adminEmail" placeholder="admin@example.com" autocomplete="username"></div>
+          <div class="form-group"><label>Password</label><input type="password" id="adminPassword" placeholder="••••••••" autocomplete="current-password"></div>
           <button class="btn-primary" id="adminLoginBtn"><i class="fas fa-sign-in-alt"></i> Sign In</button>
           <div class="login-error" id="loginError"></div>
           <div class="login-links">
@@ -939,7 +939,7 @@
           </div>
           <div class="form-row">
             <div class="form-group"><label>Phone</label><input type="tel" id="newMemberPhone" placeholder="+91 98765 43210"></div>
-            <div class="form-group"><label>Role</label><select id="newMemberRole"><option value="business">Business Associate</option><option value="legal">Legal Associate</option><option value="technical">Technical Associate</option></select></div>
+            <div class="form-group"><label>Role</label><select id="newMemberRole"><option value="business">Business Associate</option><option value="legal">Legal Associate</option><option value="technical">Technical Associate</option><option value="credit">Credit Associate</option></select></div>
           </div>
           <button class="btn-sm gold" id="addMemberBtn" style="width:100%;padding:10px;"><i class="fas fa-plus"></i> Add Member</button>
         </div>
@@ -950,6 +950,10 @@
         <div class="card">
           <div class="card-title"><i class="fas fa-tools"></i> Technical Team</div>
           <div id="technicalTeamList"></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="fas fa-coins"></i> Credit Team</div>
+          <div id="creditTeamList"></div>
         </div>
         <div class="card">
           <div class="card-title"><i class="fas fa-briefcase"></i> Business Associates</div>
@@ -1004,6 +1008,7 @@
         users: 'solitaire_users',
         legalTeam: 'solitaire_legalTeam',
         technicalTeam: 'solitaire_technicalTeam',
+        creditTeam: 'solitaire_creditTeam',
         businessAssociates: 'solitaire_businessAssociates',
         feedEntries: 'solitaire_feedEntries',
         docHistory: 'solitaire_docHistory',
@@ -1022,6 +1027,7 @@
       let users = load(KEYS.users, {});
       let legalTeam = load(KEYS.legalTeam, []);
       let technicalTeam = load(KEYS.technicalTeam, []);
+      let creditTeam = load(KEYS.creditTeam, []);
       let businessAssociates = load(KEYS.businessAssociates, []);
       let feedEntries = load(KEYS.feedEntries, []);
       let docHistory = load(KEYS.docHistory, []);
@@ -1041,7 +1047,7 @@
         clearTimeout(t._tm); t._tm = setTimeout(function() { t.classList.remove('show'); }, 2500); }
 
       function getTeamName(email, team) { const arr = team === 'legal' ? legalTeam : team === 'technical' ? technicalTeam :
-          businessAssociates; const m = arr.find(function(a) { return a.email === email; }); return m ? m.name : email.split(
+          team === 'credit' ? creditTeam : businessAssociates; const m = arr.find(function(a) { return a.email === email; }); return m ? m.name : email.split(
           '@')[0]; }
 
       function persistAll() {
@@ -1049,6 +1055,7 @@
         save(KEYS.users, users);
         save(KEYS.legalTeam, legalTeam);
         save(KEYS.technicalTeam, technicalTeam);
+        save(KEYS.creditTeam, creditTeam);
         save(KEYS.businessAssociates, businessAssociates);
         save(KEYS.feedEntries, feedEntries);
         save(KEYS.docHistory, docHistory);
@@ -1527,6 +1534,7 @@
         }
         document.getElementById('legalTeamList').innerHTML = renderList(legalTeam, 'legal');
         document.getElementById('technicalTeamList').innerHTML = renderList(technicalTeam, 'technical');
+        document.getElementById('creditTeamList').innerHTML = renderList(creditTeam, 'credit');
         document.getElementById('baTeamList').innerHTML = renderList(businessAssociates, 'ba');
       }
 
@@ -1560,7 +1568,7 @@
       // TEAM ACTIONS
       // ================================================================
       window.approveMember = function(type, idx) {
-        const arr = type === 'legal' ? legalTeam : type === 'technical' ? technicalTeam : businessAssociates;
+        const arr = type === 'legal' ? legalTeam : type === 'technical' ? technicalTeam : type === 'credit' ? creditTeam : businessAssociates;
         const member = arr[idx];
         if (!member) return;
         member.status = 'active';
@@ -1574,7 +1582,7 @@
 
       window.terminateMember = function(type, idx) {
         if (!confirm('Terminate this member?')) return;
-        const arr = type === 'legal' ? legalTeam : type === 'technical' ? technicalTeam : businessAssociates;
+        const arr = type === 'legal' ? legalTeam : type === 'technical' ? technicalTeam : type === 'credit' ? creditTeam : businessAssociates;
         const member = arr[idx];
         if (!member) return;
         member.status = 'terminated';
@@ -1587,7 +1595,7 @@
       };
 
       window.reactivateMember = function(type, idx) {
-        const arr = type === 'legal' ? legalTeam : type === 'technical' ? technicalTeam : businessAssociates;
+        const arr = type === 'legal' ? legalTeam : type === 'technical' ? technicalTeam : type === 'credit' ? creditTeam : businessAssociates;
         const member = arr[idx];
         if (!member) return;
         member.status = 'active';
@@ -1601,7 +1609,7 @@
 
       window.removeMember = function(type, idx) {
         if (!confirm('Remove this member permanently?')) return;
-        const arr = type === 'legal' ? legalTeam : type === 'technical' ? technicalTeam : businessAssociates;
+        const arr = type === 'legal' ? legalTeam : type === 'technical' ? technicalTeam : type === 'credit' ? creditTeam : businessAssociates;
         const member = arr[idx];
         if (!member) return;
         arr.splice(idx, 1);
@@ -1622,7 +1630,7 @@
         users[email] = { password: 'Password@123', role: role, name: name, mobile: phone, status: 'pending' };
         const newMember = { id: Date.now(), name: name, email: email, phone: phone, status: 'pending' };
         if (role === 'legal') { legalTeam.push(newMember); } else if (role === 'technical') { technicalTeam.push(
-            newMember); } else { businessAssociates.push(newMember); }
+            newMember); } else if (role === 'credit') { creditTeam.push(newMember); } else { businessAssociates.push(newMember); }
         persistAll();
         document.getElementById('newMemberName').value = '';
         document.getElementById('newMemberEmail').value = '';
