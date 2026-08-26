@@ -1250,7 +1250,7 @@
         if (!email || !pass) { loginError.textContent = '⚠️ Please enter both email and password.'; return; }
         const user = users[email];
         if (!user || user.password !== pass) { loginError.textContent = '❌ Invalid credentials.'; return; }
-        if (user.role !== 'owner') { loginError.textContent = '❌ Access denied. Admin only.'; return; }
+        if (user.role !== 'owner' && user.role !== 'admin') { loginError.textContent = '❌ Access denied. Admin only.'; return; }
         currentUser = email;
         loginOverlay.classList.add('hidden');
         adminName.textContent = user.name || 'Admin';
@@ -1345,7 +1345,7 @@
           return;
         }
 
-        if (user.role !== 'owner') {
+        if (user.role !== 'owner' && user.role !== 'admin') {
           forgotError.textContent = '❌ This email is not an admin account.';
           forgotSuccess.textContent = '';
           return;
