@@ -1850,7 +1850,29 @@
         const pageHeight = doc.internal.pageSize.getHeight();
         const marginX = 52;
         const rightX = pageWidth - marginX;
-        let y = 58;
+        const bottomLimit = pageHeight - 56;
+        let y = 54;
+        let pageNum = 1;
+
+        // Keeps content from ever running into (or past) the footer area.
+        // If the next block won't fit, starts a new page with a slim
+        // continuation header so the branding carries across pages.
+        function checkPageBreak(neededSpace) {
+          if (y + neededSpace <= bottomLimit) return;
+          doc.addPage();
+          pageNum += 1;
+          y = 50;
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8.5);
+          doc.setTextColor(150, 118, 30);
+          doc.text('SOLITAIRE FINZ MART — continued', marginX, y);
+          doc.text(cfg.refNo, rightX, y, { align: 'right' });
+          y += 8;
+          doc.setDrawColor(222, 200, 150);
+          doc.setLineWidth(0.7);
+          doc.line(marginX, y, rightX, y);
+          y += 18;
+        }
 
         // Diamond mark drawn as vector shapes (not a font glyph) — avoids
         // the encoding corruption standard PDF fonts have with Unicode
@@ -1862,50 +1884,53 @@
         doc.setFillColor(180, 140, 40);
         doc.triangle(diamondCx - dS, diamondCy, diamondCx, diamondCy - dS, diamondCx + dS, diamondCy, 'F');
         doc.triangle(diamondCx - dS, diamondCy, diamondCx, diamondCy + dS, diamondCx + dS, diamondCy, 'F');
-        y += 16;
+        y += 15;
 
         doc.setFont('times', 'bold');
-        doc.setFontSize(17);
+        doc.setFontSize(16);
         doc.setTextColor(20, 20, 20);
         doc.text('SOLITAIRE FINZ MART', pageWidth / 2, y, { align: 'center' });
-        y += 15;
+        y += 13;
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
+        doc.setFontSize(8.5);
         doc.setTextColor(130, 118, 84);
         doc.text('Loan origination & distribution', pageWidth / 2, y, { align: 'center' });
-        y += 16;
+        y += 14;
         doc.setDrawColor(201, 162, 39);
         doc.setLineWidth(1.1);
         doc.line(marginX, y, rightX, y);
-        y += 20;
+        y += 17;
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9.5);
         doc.setTextColor(90, 80, 60);
         doc.text(cfg.refNo, marginX, y);
         doc.text('Dated ' + cfg.dated, rightX, y, { align: 'right' });
-        y += 14;
+        y += 13;
         doc.text('File ' + cfg.fileNo, marginX, y);
-        y += 26;
+        y += 20;
 
         doc.setFont('times', 'bold');
-        doc.setFontSize(13.5);
+        doc.setFontSize(13);
         doc.setTextColor(20, 20, 20);
         doc.text(cfg.title, pageWidth / 2, y, { align: 'center' });
-        y += 24;
+        y += 19;
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10.5);
         doc.setTextColor(30, 30, 30);
         const toLines = doc.splitTextToSize(cfg.toLine, rightX - marginX);
+        checkPageBreak(toLines.length * 13 + 10);
         doc.text(toLines, marginX, y);
-        y += toLines.length * 14 + 12;
+        y += toLines.length * 13 + 10;
 
         const introLines = doc.splitTextToSize(cfg.introParagraph, rightX - marginX);
+        checkPageBreak(introLines.length * 13 + 14);
         doc.text(introLines, marginX, y);
-        y += introLines.length * 14 + 16;
+        y += introLines.length * 13 + 14;
 
         function sectionHeader(label) {
+          checkPageBreak(34);
           doc.setFont('times', 'bold');
           doc.setFontSize(10.5);
           doc.setTextColor(150, 118, 30);
@@ -1914,7 +1939,7 @@
           doc.setDrawColor(222, 200, 150);
           doc.setLineWidth(0.7);
           doc.line(marginX, y, rightX, y);
-          y += 15;
+          y += 14;
         }
 
         sectionHeader(cfg.tableTitle);
@@ -1923,14 +1948,16 @@
         cfg.tableRows.forEach(function (row) {
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(60, 55, 40);
+          const valLines = doc.splitTextToSize(String(row[1]), rightX - marginX - labelW);
+          const rowH = Math.max(14, valLines.length * 13);
+          checkPageBreak(rowH);
           doc.text(row[0], marginX, y);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(25, 25, 25);
-          const valLines = doc.splitTextToSize(String(row[1]), rightX - marginX - labelW);
           doc.text(valLines, marginX + labelW, y);
-          y += Math.max(15, valLines.length * 14);
+          y += rowH;
         });
-        y += 10;
+        y += 8;
 
         sectionHeader(cfg.conditionsTitle);
         doc.setFont('helvetica', 'normal');
@@ -1938,23 +1965,46 @@
         doc.setTextColor(30, 30, 30);
         cfg.conditions.forEach(function (c, i) {
           const lines = doc.splitTextToSize((i + 1) + '. ' + c, rightX - marginX);
+          const blockH = lines.length * 13 + 4;
+          checkPageBreak(blockH);
           doc.text(lines, marginX, y);
-          y += lines.length * 14 + 5;
+          y += blockH;
         });
-        y += 8;
+        y += 6;
 
         sectionHeader(cfg.statusTitle);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
         doc.setTextColor(30, 30, 30);
         const statusLines = doc.splitTextToSize(cfg.statusLine, rightX - marginX);
+        checkPageBreak(statusLines.length * 13);
         doc.text(statusLines, marginX, y);
+        y += statusLines.length * 13;
 
+        // Footer sits directly below the content (with a small closing
+        // gap) instead of being pinned to the bottom of the page — this
+        // is what was leaving large blank gaps on shorter reports.
+        y += 22;
+        const footerLines = doc.splitTextToSize(cfg.footerNote, rightX - marginX);
+        checkPageBreak(footerLines.length * 10 + 14);
+        doc.setDrawColor(225, 225, 225);
+        doc.setLineWidth(0.6);
+        doc.line(marginX, y, rightX, y);
+        y += 12;
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7.3);
         doc.setTextColor(140, 130, 108);
-        const footerLines = doc.splitTextToSize(cfg.footerNote, rightX - marginX);
-        doc.text(footerLines, marginX, pageHeight - 46);
+        doc.text(footerLines, marginX, y);
+
+        // Page numbers, stamped once total page count is known.
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let p = 1; p <= totalPages; p++) {
+          doc.setPage(p);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7.5);
+          doc.setTextColor(150, 150, 150);
+          doc.text('Page ' + p + ' of ' + totalPages, rightX, pageHeight - 20, { align: 'right' });
+        }
 
         return doc;
       }
@@ -2099,11 +2149,14 @@
         pushRow(rows, 'FOIR (%)', d.foirPercent);
         pushRow(rows, 'Net monthly income', fmtINR(d.netMonthlyIncome));
         pushRow(rows, 'Existing EMI obligations', fmtINR(d.existingEmiObligations));
+        pushRow(rows, 'DTI (%)', d.dtiRatio);
         pushRow(rows, 'Employment type', d.employmentType);
         pushRow(rows, 'Income stability', d.incomeStability);
         pushRow(rows, 'Tenure (months)', d.tenureMonths);
         pushRow(rows, 'Rate of interest (%)', d.roi);
-        pushRow(rows, 'Processing fee (%)', d.processingFees);
+        pushRow(rows, 'EMI (₹/month)', fmtINR(d.calculatedEmi));
+        pushRow(rows, 'Processing fee (%)', d.feesPercent);
+        pushRow(rows, 'Processing fee amount', fmtINR(d.feesAmount));
         pushRow(rows, 'Risk level', d.riskLevel);
         pushRow(rows, 'Credit officer', d.creditOfficerName ? (d.creditOfficerName + (d.creditOfficerId ? ' (' + d.creditOfficerId + ')' : '')) : '');
 
