@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- Chart.js for graphical presentation -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">
   </script>
@@ -973,6 +974,10 @@
         </div>
         <div class="card">
           <div class="card-title"><i class="fas fa-stamp"></i> Evaluation Reports (Sanction Letter format)</div>
+          <div class="form-row">
+            <div class="form-group"><label>Loan App No</label><input type="text" id="reportAppNo" placeholder="e.g. LN-1012" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
+          </div>
+          <div style="font-size:11px;color:#6a5f48;margin-bottom:8px;">Pulls the actual submitted findings from the Legal/Technical/Credit evaluation portal for this loan app number.</div>
           <div style="display:flex; flex-direction:column; gap:10px;">
             <button class="btn-sm gold" onclick="generateLegalReportPDF()" style="padding:12px;font-size:13px;"><i class="fas fa-gavel"></i> Legal Report</button>
             <button class="btn-sm blue" onclick="generateTechnicalReportPDF()" style="padding:12px;font-size:13px;"><i class="fas fa-tools"></i> Technical Report</button>
@@ -1784,7 +1789,45 @@
       };
 
       // ================================================================
-      // BRANDED REPORT PDFs — Legal / Technical / Credit
+      // SUPABASE (read-only) — pulls real submitted Legal/Technical/Credit
+      // reports from the same project used by the evaluation portal
+      // (SOLITAIRE-Legal-Technical-Credit). This panel has no write access
+      // to that data; it only reads evaluation_reports for PDF generation.
+      // ================================================================
+      const SFM_SUPABASE_URL = 'https://nbpvamrwzqrgoiwpadwc.supabase.co';
+      const SFM_SUPABASE_KEY = 'sb_publishable_GrJ_9z_y903WFMGjoAg82Q_cG3N2_Jx';
+      const sfmSb = (window.supabase && window.supabase.createClient)
+        ? window.supabase.createClient(SFM_SUPABASE_URL, SFM_SUPABASE_KEY)
+        : null;
+
+      async function fetchEvaluationReport(appNo, reportType) {
+        if (!sfmSb) { toast('⚠️ Could not connect to Supabase'); return null; }
+        const { data, error } = await sfmSb.from('evaluation_reports')
+          .select('*')
+          .eq('loan_app_no', appNo)
+          .eq('report_type', reportType)
+          .order('updated_at', { ascending: false })
+          .limit(1);
+        if (error) { toast('⚠️ ' + error.message); return null; }
+        return (data && data[0]) || null;
+      }
+
+      function pushRow(rows, label, value) {
+        if (value === undefined || value === null || value === '') return;
+        rows.push([label, String(value)]);
+      }
+
+      function splitToConditions(text, fallback) {
+        if (!text || !String(text).trim()) return fallback;
+        return String(text).split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
+      }
+
+      function fmtINR(v) {
+        if (v === undefined || v === null || v === '') return '';
+        const n = Number(v);
+        return isNaN(n) ? String(v) : ('INR ' + n.toLocaleString('en-IN'));
+      }
+
       // Matches the Sanction Letter letterhead format: diamond mark,
       // reference/file numbers, dated line, bordered term tables,
       // numbered conditions, status line, footer disclaimer.
@@ -1809,10 +1852,22 @@
         const rightX = pageWidth - marginX;
         let y = 58;
 
+        // Diamond mark drawn as vector shapes (not a font glyph) — avoids
+        // the encoding corruption standard PDF fonts have with Unicode
+        // symbols like U+25C6, which previously also threw off text-width
+        // calculations and pushed the header text past the page edge.
+        const diamondCx = pageWidth / 2;
+        const diamondCy = y - 4;
+        const dS = 6;
+        doc.setFillColor(180, 140, 40);
+        doc.triangle(diamondCx - dS, diamondCy, diamondCx, diamondCy - dS, diamondCx + dS, diamondCy, 'F');
+        doc.triangle(diamondCx - dS, diamondCy, diamondCx, diamondCy + dS, diamondCx + dS, diamondCy, 'F');
+        y += 16;
+
         doc.setFont('times', 'bold');
         doc.setFontSize(17);
         doc.setTextColor(20, 20, 20);
-        doc.text('\u25C6  S O L I T A I R E   F I N Z   M A R T', pageWidth / 2, y, { align: 'center' });
+        doc.text('SOLITAIRE FINZ MART', pageWidth / 2, y, { align: 'center' });
         y += 15;
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
@@ -1904,135 +1959,173 @@
         return doc;
       }
 
-      function pickLatestLead() {
-        return leads.length ? leads[leads.length - 1] : null;
-      }
-
-      function fmtAmount(n) {
-        if (!n && n !== 0) return '[Amount]';
-        return 'INR ' + Number(n).toLocaleString('en-IN');
-      }
-
       function logReportHistory(entry) {
         docHistory.push(entry);
         persistAll();
         renderDocs();
       }
 
-      window.generateLegalReportPDF = function () {
-        const lead = pickLatestLead();
+      window.generateLegalReportPDF = async function () {
+        const appNo = (document.getElementById('reportAppNo').value || '').trim();
+        if (!appNo) { toast('⚠️ Enter a Loan App No first'); return; }
+        toast('⏳ Fetching legal report for ' + appNo + '…');
+        const row = await fetchEvaluationReport(appNo, 'legal');
+        if (!row) { toast('⚠️ No submitted legal report found for ' + appNo); return; }
+        const d = row.data || {};
+        const name = d.borrowers || (d.__rawLead && d.__rawLead.borrower && d.__rawLead.borrower.name) || '[Borrower]';
         const refNo = nextRefNo('LR');
-        const fileNo = lead ? ('APP-' + new Date().getFullYear() + '-' + String(lead.id).slice(-4)) : ('APP-' + new Date().getFullYear() + '-0000');
-        const dated = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-        const name = lead ? lead.borrower.name : '[Borrower Name]';
-        const legalName = lead && lead.assignedLegal ? getTeamName(lead.assignedLegal, 'legal') : '[Legal Associate]';
+        const dated = d.reportDate || new Date(row.submitted_at || row.updated_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+        const rows = [];
+        pushRow(rows, 'Borrower', name);
+        pushRow(rows, 'Property', d.propertyAddress);
+        pushRow(rows, 'Ownership type', d.ownershipType);
+        pushRow(rows, 'Property classification', d.propertyClass);
+        pushRow(rows, 'Title flow / chain', d.titleFlow);
+        pushRow(rows, 'Root of title (yrs)', d.rootOfTitleYears);
+        pushRow(rows, 'Search period (yrs)', d.searchPeriodYears);
+        pushRow(rows, 'Search agency', d.searchAgency);
+        pushRow(rows, 'Encumbrance found', d.encumbranceFound);
+        pushRow(rows, 'Litigation pending', d.litigationPending);
+        pushRow(rows, 'Court search done', d.courtSearchDone);
+        pushRow(rows, 'Stamp duty paid', d.stampDutyPaid);
+        pushRow(rows, 'Registration completed', d.registrationCompleted);
+        pushRow(rows, 'RERA status', d.reraStatus);
+        pushRow(rows, 'Society NOC', d.societyNocStatus);
+        pushRow(rows, 'CERSAI registration', d.cersaiRegistration);
+        pushRow(rows, 'Municipal approval', d.municipalApprovalStatus);
+        pushRow(rows, 'Advocate', d.advocateName ? (d.advocateName + (d.advocateEnrollmentNo ? ' (Enrl. ' + d.advocateEnrollmentNo + ')' : '')) : '');
+
+        const notes = [];
+        if (d.encumbranceDetails && !/^(no|nil|nill|not found)/i.test(d.encumbranceDetails)) notes.push('Encumbrance: ' + d.encumbranceDetails);
+        if (d.litigationDetails && !/^(no|nil|nill|not)/i.test(d.litigationDetails)) notes.push('Litigation: ' + d.litigationDetails);
+        if (d.titleDefects && !/^(no|nil|nill)/i.test(d.titleDefects)) notes.push('Title defects: ' + d.titleDefects);
 
         const cfg = {
-          refNo: refNo, fileNo: fileNo, dated: dated,
+          refNo: refNo, fileNo: appNo, dated: dated,
           title: 'LEGAL DUE DILIGENCE REPORT',
-          toLine: 'Report on the loan application of ' + name + ' filed under reference ' + fileNo + '.',
+          toLine: 'Report on the loan application of ' + name + ' filed under reference ' + appNo + '.',
           introParagraph: 'This report sets out the findings of the legal due diligence carried out in respect of the above-referenced application, based on the documents made available for verification.',
           tableTitle: 'VERIFICATION SUMMARY',
-          tableRows: [
-            ['Borrower', name],
-            ['Legal Associate', legalName],
-            ['Title verification', 'Clear and marketable'],
-            ['Encumbrance check', 'No adverse encumbrance found'],
-            ['Approved layout / plan', 'Verified with local authority records'],
-            ['Litigation check', 'No pending litigation observed']
-          ],
+          tableRows: rows.length ? rows : [['Borrower', name]],
           conditionsTitle: 'OBSERVATIONS & CONDITIONS',
-          conditions: [
-            'Original title documents to be retained on record until loan closure.',
-            'Any pending mutation entries to be updated prior to disbursement.',
+          conditions: splitToConditions(notes.join('\n') || d.conditions, [
+            'No adverse observations were recorded against this application.',
             'This opinion is based solely on documents furnished and is subject to revision if further facts emerge.'
-          ],
+          ]),
           statusTitle: 'LEGAL OPINION',
-          statusLine: 'Cleared for disbursement from a legal standpoint, subject to the conditions listed above.',
-          footerNote: 'Solitaire Finz Mart · Loan origination & distribution services · This report is computer generated and is valid without a physical signature. It reflects an independent legal opinion and does not constitute a guarantee by Solitaire Finz Mart or the lender.'
+          statusLine: d.recommendation || d.conclusion || 'Report submitted — status: ' + (row.status || 'pending') + '.',
+          footerNote: 'Solitaire Finz Mart · Loan origination & distribution services · This report is computer generated from the associate\u2019s submitted evaluation and is valid without a physical signature. It reflects an independent legal opinion and does not constitute a guarantee by Solitaire Finz Mart or the lender.'
         };
 
         buildBrandedPDF(cfg).save('Legal_Report_' + refNo + '.pdf');
-        logReportHistory({ type: 'legal_report', leadName: name, date: new Date().toISOString(), refNo: refNo, fileNo: fileNo, cfg: cfg });
+        logReportHistory({ type: 'legal_report', leadName: name, date: new Date().toISOString(), refNo: refNo, fileNo: appNo, cfg: cfg });
         toast('📄 Legal report generated');
       };
 
-      window.generateTechnicalReportPDF = function () {
-        const lead = pickLatestLead();
+      window.generateTechnicalReportPDF = async function () {
+        const appNo = (document.getElementById('reportAppNo').value || '').trim();
+        if (!appNo) { toast('⚠️ Enter a Loan App No first'); return; }
+        toast('⏳ Fetching technical report for ' + appNo + '…');
+        const row = await fetchEvaluationReport(appNo, 'technical');
+        if (!row) { toast('⚠️ No submitted technical report found for ' + appNo); return; }
+        const d = row.data || {};
+        const name = d.borrowers || (d.__rawLead && d.__rawLead.borrower && d.__rawLead.borrower.name) || '[Borrower]';
         const refNo = nextRefNo('TR');
-        const fileNo = lead ? ('APP-' + new Date().getFullYear() + '-' + String(lead.id).slice(-4)) : ('APP-' + new Date().getFullYear() + '-0000');
-        const dated = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-        const name = lead ? lead.borrower.name : '[Borrower Name]';
-        const amount = lead ? fmtAmount(lead.loanAmount) : '[Amount]';
-        const techName = lead && lead.assignedTechnical ? getTeamName(lead.assignedTechnical, 'technical') : '[Technical Associate]';
+        const dated = d.reportDate || new Date(row.submitted_at || row.updated_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+        const rows = [];
+        pushRow(rows, 'Borrower', name);
+        pushRow(rows, 'Property', d.propertyAddress);
+        pushRow(rows, 'Property type', d.propType);
+        pushRow(rows, 'Built-up area (sqft)', d.builtArea);
+        pushRow(rows, 'Carpet area (sqft)', d.carpetArea);
+        pushRow(rows, 'Land area (sqft)', d.landArea);
+        pushRow(rows, 'Construction type', d.constrType);
+        pushRow(rows, 'Construction status', d.constrStatus);
+        pushRow(rows, 'Construction quality', d.constrQuality);
+        pushRow(rows, 'Maintenance condition', d.maintCondition);
+        pushRow(rows, 'Ownership', d.ownership);
+        pushRow(rows, 'Zoning', d.zoning);
+        pushRow(rows, 'Valuation method', d.valMethod);
+        pushRow(rows, 'Market value', fmtINR(d.marketValue));
+        pushRow(rows, 'Distress value', fmtINR(d.distressValue));
+        pushRow(rows, 'Total value', fmtINR(d.totalValue));
+        pushRow(rows, 'LTV (%)', d.ltv);
+        pushRow(rows, 'Valuer', d.valuerName ? (d.valuerName + (d.valuerId ? ' (' + d.valuerId + ')' : '')) : '');
+
+        const notes = [];
+        if (d.riskFactors && !/^(no|nil|nill|na|good)/i.test(d.riskFactors)) notes.push('Risk factors: ' + d.riskFactors);
+        if (d.planDeviation && /^yes/i.test(d.planDeviation)) notes.push('Plan deviation noted: requires clarification before disbursement.');
 
         const cfg = {
-          refNo: refNo, fileNo: fileNo, dated: dated,
+          refNo: refNo, fileNo: appNo, dated: dated,
           title: 'TECHNICAL VALUATION REPORT',
-          toLine: 'Report on the property offered as security by ' + name + ' under reference ' + fileNo + '.',
+          toLine: 'Report on the property offered as security by ' + name + ' under reference ' + appNo + '.',
           introParagraph: 'This report presents the findings of the technical inspection and valuation of the property offered as security for the above-referenced loan application.',
           tableTitle: 'VALUATION SUMMARY',
-          tableRows: [
-            ['Borrower', name],
-            ['Technical Associate', techName],
-            ['Loan amount applied', amount],
-            ['Construction stage', 'Completed / ready to occupy'],
-            ['Market value (est.)', amount],
-            ['Distress value (est.)', amount]
-          ],
+          tableRows: rows.length ? rows : [['Borrower', name]],
           conditionsTitle: 'OBSERVATIONS & CONDITIONS',
-          conditions: [
+          conditions: splitToConditions(notes.join('\n') || d.conditions, [
             'Valuation is based on physical inspection carried out on the date of visit and prevailing local market rates.',
-            'Any structural changes after the date of this report will require re-inspection.',
             'This valuation is for lending purposes only and is not a certificate of structural safety.'
-          ],
+          ]),
           statusTitle: 'TECHNICAL RECOMMENDATION',
-          statusLine: 'Property found suitable to be accepted as security, subject to the conditions listed above.',
-          footerNote: 'Solitaire Finz Mart · Loan origination & distribution services · This report is computer generated and is valid without a physical signature. It reflects an independent technical opinion and does not constitute a guarantee by Solitaire Finz Mart or the lender.'
+          statusLine: d.recommendation || d.conclusion || 'Report submitted — status: ' + (row.status || 'pending') + '.',
+          footerNote: 'Solitaire Finz Mart · Loan origination & distribution services · This report is computer generated from the associate\u2019s submitted evaluation and is valid without a physical signature. It reflects an independent technical opinion and does not constitute a guarantee by Solitaire Finz Mart or the lender.'
         };
 
         buildBrandedPDF(cfg).save('Technical_Report_' + refNo + '.pdf');
-        logReportHistory({ type: 'technical_report', leadName: name, date: new Date().toISOString(), refNo: refNo, fileNo: fileNo, cfg: cfg });
+        logReportHistory({ type: 'technical_report', leadName: name, date: new Date().toISOString(), refNo: refNo, fileNo: appNo, cfg: cfg });
         toast('📄 Technical report generated');
       };
 
-      window.generateCreditReportPDF = function () {
-        const lead = pickLatestLead();
+      window.generateCreditReportPDF = async function () {
+        const appNo = (document.getElementById('reportAppNo').value || '').trim();
+        if (!appNo) { toast('⚠️ Enter a Loan App No first'); return; }
+        toast('⏳ Fetching credit report for ' + appNo + '…');
+        const row = await fetchEvaluationReport(appNo, 'credit');
+        if (!row) { toast('⚠️ No submitted credit report found for ' + appNo); return; }
+        const d = row.data || {};
+        const name = d.borrowers || (d.__rawLead && d.__rawLead.borrower && d.__rawLead.borrower.name) || '[Borrower]';
         const refNo = nextRefNo('CR');
-        const fileNo = lead ? ('APP-' + new Date().getFullYear() + '-' + String(lead.id).slice(-4)) : ('APP-' + new Date().getFullYear() + '-0000');
-        const dated = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-        const name = lead ? lead.borrower.name : '[Borrower Name]';
-        const amount = lead ? fmtAmount(lead.loanAmount) : '[Amount]';
-        const cibil = lead && lead.credit ? lead.credit : '[CIBIL Score]';
-        const creditName = lead && lead.assignedCredit ? getTeamName(lead.assignedCredit, 'credit') : '[Credit Associate]';
+        const dated = d.reportDate || new Date(row.submitted_at || row.updated_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+        const rows = [];
+        pushRow(rows, 'Borrower', name);
+        pushRow(rows, 'Requested loan amount', fmtINR(d.requestedLoanAmount));
+        pushRow(rows, 'Sanctioned loan amount', fmtINR(d.sanctionedLoanAmount));
+        pushRow(rows, 'CIBIL / bureau score', d.cibilScore);
+        pushRow(rows, 'FOIR (%)', d.foirPercent);
+        pushRow(rows, 'Net monthly income', fmtINR(d.netMonthlyIncome));
+        pushRow(rows, 'Existing EMI obligations', fmtINR(d.existingEmiObligations));
+        pushRow(rows, 'Employment type', d.employmentType);
+        pushRow(rows, 'Income stability', d.incomeStability);
+        pushRow(rows, 'Tenure (months)', d.tenureMonths);
+        pushRow(rows, 'Rate of interest (%)', d.roi);
+        pushRow(rows, 'Processing fee (%)', d.processingFees);
+        pushRow(rows, 'Risk level', d.riskLevel);
+        pushRow(rows, 'Credit officer', d.creditOfficerName ? (d.creditOfficerName + (d.creditOfficerId ? ' (' + d.creditOfficerId + ')' : '')) : '');
 
         const cfg = {
-          refNo: refNo, fileNo: fileNo, dated: dated,
+          refNo: refNo, fileNo: appNo, dated: dated,
           title: 'CREDIT APPRAISAL REPORT',
-          toLine: 'Report on the credit appraisal of ' + name + ' under reference ' + fileNo + '.',
+          toLine: 'Report on the credit appraisal of ' + name + ' under reference ' + appNo + '.',
           introParagraph: 'This report presents the credit appraisal carried out for the above-referenced loan application, based on the financial documents and bureau records made available.',
           tableTitle: 'APPRAISAL SUMMARY',
-          tableRows: [
-            ['Borrower', name],
-            ['Credit Associate', creditName],
-            ['Loan amount applied', amount],
-            ['CIBIL / bureau score', cibil],
-            ['FOIR', 'Within acceptable range'],
-            ['Risk category', 'Standard']
-          ],
+          tableRows: rows.length ? rows : [['Borrower', name]],
           conditionsTitle: 'OBSERVATIONS & CONDITIONS',
-          conditions: [
+          conditions: splitToConditions(d.sanctionConditions || d.remarks, [
             'Appraisal is based on income and bureau documents furnished as on the date of this report.',
-            'Any material change in income or bureau standing must be reported prior to disbursement.',
             'This appraisal is an internal risk assessment and does not bind the lender\u2019s own credit decision.'
-          ],
+          ]),
           statusTitle: 'CREDIT RECOMMENDATION',
-          statusLine: 'Recommended for sanction, subject to the conditions listed above and final approval by the lender.',
-          footerNote: 'Solitaire Finz Mart · Loan origination & distribution services · This report is computer generated and is valid without a physical signature. It reflects an independent credit opinion and does not constitute a guarantee by Solitaire Finz Mart or the lender.'
+          statusLine: d.recommendation || d.conclusion || 'Report submitted — status: ' + (row.status || 'pending') + '.',
+          footerNote: 'Solitaire Finz Mart · Loan origination & distribution services · This report is computer generated from the associate\u2019s submitted evaluation and is valid without a physical signature. It reflects an independent credit opinion and does not constitute a guarantee by Solitaire Finz Mart or the lender.'
         };
 
         buildBrandedPDF(cfg).save('Credit_Report_' + refNo + '.pdf');
-        logReportHistory({ type: 'credit_report', leadName: name, date: new Date().toISOString(), refNo: refNo, fileNo: fileNo, cfg: cfg });
+        logReportHistory({ type: 'credit_report', leadName: name, date: new Date().toISOString(), refNo: refNo, fileNo: appNo, cfg: cfg });
         toast('📄 Credit report generated');
       };
 
