@@ -1566,7 +1566,7 @@
       // ================================================================
       // RENDER: LEADS
       // ================================================================
-      function renderLeads() {
+      async function renderLeads() {
         const container = document.getElementById('leadList');
         const statusFilter = document.getElementById('filterStatus').value;
         const search = document.getElementById('searchLead').value.toLowerCase();
@@ -1581,15 +1581,28 @@
           return;
         }
 
+        // Single bulk pull from the sanction register so the list can show
+        // an at-a-glance sanction badge without one query per row.
+        const sanctionMap = {};
+        if (sfmSb) {
+          const { data } = await sfmSb.from('sanctions').select('lead_id, sanction_amount, status');
+          (data || []).forEach(function(s) { sanctionMap[s.lead_id] = s; });
+        }
+
         container.innerHTML = filtered.map(function(l) {
           const statusClass = l.stage === 'SANCTIONED' ? 'approved' : l.stage === 'Declined' ? 'declined' : 'pending';
+          const sanction = sanctionMap[l.id];
+          const sanctionTag = sanction
+            ? '<span style="font-size:10px;color:#c9a84c;"><i class="fas fa-stamp"></i> ' + fmtINR(sanction.sanction_amount) + ' (' + escapeHtml(sanction.status || 'sanctioned') + ')</span>'
+            : '';
           return '<div class="lead-row" data-id="' + l.id + '">' +
             '<div class="lead-info"><span class="name">' + escapeHtml(l.borrower.name) + '</span>' +
             '<span class="meta">' + escapeHtml(l.borrower.phone) + ' · ' + escapeHtml(l.loanType) + ' · ₹' + (l
               .loanAmount / 100000).toFixed(1) + 'L</span>' +
             '<span style="font-size:10px;color:#6a5f48;">⚖️ ' + (l.legalStatus || 'pending') + '  🔧 ' + (l
               .technicalStatus || 'pending') + '  📤 ' + (l.legalSubmitted ? 'L' : '') + (l.technicalSubmitted ?
-              'T' : '') + '</span></div>' +
+              'T' : '') + '</span>' +
+            (sanctionTag ? '<br>' + sanctionTag : '') + '</div>' +
             '<div><span class="lead-status ' + statusClass + '">' + escapeHtml(l.stage || 'New') + '</span>' +
             '<div style="margin-top:4px;display:flex;gap:4px;">' +
             '<button class="btn-sm blue" onclick="viewLead(' + l.id + ')"><i class="fas fa-eye"></i></button>' +
@@ -1747,7 +1760,7 @@
       // ================================================================
       // LEAD ACTIONS
       // ================================================================
-      window.viewLead = function(id) {
+      window.viewLead = async function(id) {
         const lead = leads.find(function(l) { return l.id === id; });
         if (!lead) return;
         toast('📋 Lead #' + lead.id + ' — ' + lead.borrower.name);
@@ -1772,6 +1785,9 @@
             .assignedLegal, 'legal')) + '</div>' : '') +
           (lead.assignedTechnical ? '<div><strong style="color:#c9a84c;">Tech:</strong> ' + escapeHtml(getTeamName(
             lead.assignedTechnical, 'technical')) + '</div>' : '') +
+          '<div id="leadSanctionBlock" style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,215,0,0.1);">' +
+          '<span style="color:#6a5f48;font-size:11px;"><i class="fas fa-spinner fa-spin"></i> Checking sanction register…</span>' +
+          '</div>' +
           '</div>';
         modal.classList.add('show');
         document.getElementById('modalCopyBtn').onclick = function() { navigator.clipboard.writeText(body.innerText)
@@ -1784,6 +1800,31 @@
         document.getElementById('modalWhatsAppBtn').onclick = function() { const phone = lead.borrower.phone.replace(
             /[^0-9]/g, ''); const msg = 'SOLITAIRE Lead #' + lead.id + '\n' + body.innerText; window.open(
             'https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank'); };
+
+        // Pull the admin's final sanction record from the sanction register
+        // (public.sanctions), matched by lead_id, so the detail view shows
+        // the officially sanctioned terms alongside the pipeline status above.
+        const sanctionBlock = document.getElementById('leadSanctionBlock');
+        const s = await fetchSanctionByLeadId(lead.id);
+        if (!sanctionBlock) return; // modal may have been closed/replaced by now
+        if (!s) {
+          sanctionBlock.innerHTML = '<span style="color:#6a5f48;font-size:11px;"><i class="fas fa-stamp"></i> No sanction on record yet</span>';
+          return;
+        }
+        const amtMismatch = lead.creditLoanAmount != null && Number(lead.creditLoanAmount) !== Number(s.sanction_amount);
+        sanctionBlock.innerHTML =
+          '<div style="color:#c9a84c;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;"><i class="fas fa-stamp"></i> Admin Sanction (Register)</div>' +
+          '<div><strong style="color:#c9a84c;">Bank:</strong> ' + escapeHtml(s.banker || '—') + '</div>' +
+          '<div><strong style="color:#c9a84c;">Sanction Amt:</strong> ' + fmtINR(s.sanction_amount) + (amtMismatch ? ' <span style="color:#e0a852;font-size:10px;">⚠ differs from credit-approved</span>' : '') + '</div>' +
+          '<div><strong style="color:#c9a84c;">ROI:</strong> ' + (s.roi != null ? s.roi + '%' : '—') + '</div>' +
+          '<div><strong style="color:#c9a84c;">Tenure:</strong> ' + (s.tenure_months != null ? s.tenure_months + ' mo' : '—') + '</div>' +
+          '<div><strong style="color:#c9a84c;">EMI:</strong> ' + fmtINR(s.emi) + '</div>' +
+          '<div><strong style="color:#c9a84c;">Processing Fee:</strong> ' + fmtINR(s.processing_fee) + '</div>' +
+          '<div><strong style="color:#c9a84c;">Insurance:</strong> ' + fmtINR(s.insurance) + '</div>' +
+          '<div><strong style="color:#c9a84c;">Sanction Date:</strong> ' + escapeHtml(s.sanction_date || '—') + '</div>' +
+          '<div><strong style="color:#c9a84c;">Status:</strong> ' + escapeHtml(s.status || '—') + '</div>' +
+          '<div><strong style="color:#c9a84c;">Approved By:</strong> ' + escapeHtml(s.approved_by || '—') + '</div>' +
+          (s.conditions || s.final_remarks ? '<div><strong style="color:#c9a84c;">Condition:</strong> ' + escapeHtml(s.conditions || s.final_remarks) + '</div>' : '');
       };
 
       window.editLeadFromAdmin = function(id) {
@@ -1911,6 +1952,20 @@
           .order('created_at', { ascending: false })
           .limit(1);
         if (error) { toast('⚠️ ' + error.message); return null; }
+        return (data && data[0]) || null;
+      }
+
+      // Pulls the final sanction record from the `sanctions` register by
+      // lead_id — used on the Lead detail view so the admin can see the
+      // officially sanctioned terms without leaving the Leads page.
+      async function fetchSanctionByLeadId(leadId) {
+        if (!sfmSb || leadId == null) return null;
+        const { data, error } = await sfmSb.from('sanctions')
+          .select('*')
+          .eq('lead_id', leadId)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        if (error) return null;
         return (data && data[0]) || null;
       }
 
