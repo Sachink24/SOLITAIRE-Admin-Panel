@@ -1149,42 +1149,6 @@
         return { start, end: now };
       }
 
-      function getProductionData(period) {
-        const { start, end } = getDateRange(period);
-        const filtered = leads.filter(function(l) {
-          const d = new Date(l.createdAt);
-          return d >= start && d <= end;
-        });
-
-        const labels = [];
-        const counts = [];
-        const maxPoints = period === 'week' ? 7 : period === 'month' ? 30 : period === 'halfyear' ? 26 : 52;
-
-        let current = new Date(start);
-        const temp = {};
-        while (current <= end) {
-          const key = current.toISOString().slice(0, 10);
-          temp[key] = 0;
-          current.setDate(current.getDate() + 1);
-        }
-
-        filtered.forEach(function(l) {
-          const key = new Date(l.createdAt).toISOString().slice(0, 10);
-          if (temp[key] !== undefined) temp[key] = (temp[key] || 0) + 1;
-        });
-
-        const sortedKeys = Object.keys(temp).sort();
-        let sampledKeys = sortedKeys;
-        if (sortedKeys.length > maxPoints) {
-          const step2 = Math.ceil(sortedKeys.length / maxPoints);
-          sampledKeys = sortedKeys.filter(function(_, i) { return i % step2 === 0; });
-        }
-        return {
-          labels: sampledKeys.map(function(k) { return k.slice(5); }),
-          data: sampledKeys.map(function(k) { return temp[k] || 0; })
-        };
-      }
-
       // ================================================================
       // TOP PERFORMERS
       // ================================================================
@@ -1239,39 +1203,120 @@
       }
 
       // ================================================================
-      // CHART
+      // CHART — Production Tracking (Leads Created / Legal / Technical /
+      // Credit / Sanctioned), all sourced live from Supabase so it reflects
+      // real submitted/sanctioned activity, not just local lead creation.
       // ================================================================
-      function renderProductionChart(period) {
-        const data = getProductionData(period);
+      async function getProductionDataMulti(period) {
+        const { start, end } = getDateRange(period);
+        const maxPoints = period === 'week' ? 7 : period === 'month' ? 30 : period === 'halfyear' ? 26 : 52;
+
+        const dayKeys = [];
+        let cur = new Date(start);
+        while (cur <= end) {
+          dayKeys.push(cur.toISOString().slice(0, 10));
+          cur.setDate(cur.getDate() + 1);
+        }
+        function emptyBuckets() { const o = {}; dayKeys.forEach(function(k) { o[k] = 0; }); return o; }
+
+        const leadsB = emptyBuckets(), legalB = emptyBuckets(), techB = emptyBuckets(),
+          creditB = emptyBuckets(), sanctionB = emptyBuckets();
+
+        if (sfmSb) {
+          const startISO = start.toISOString();
+          const endISO = end.toISOString();
+          const [leadsRes, legalRes, techRes, creditRes, sanctionRes] = await Promise.all([
+            sfmSb.from('leads').select('created_at').gte('created_at', startISO).lte('created_at', endISO),
+            sfmSb.from('leads').select('legal_submitted_date').gte('legal_submitted_date', startISO).lte('legal_submitted_date', endISO),
+            sfmSb.from('leads').select('technical_submitted_date').gte('technical_submitted_date', startISO).lte('technical_submitted_date', endISO),
+            sfmSb.from('leads').select('credit_submitted_date').gte('credit_submitted_date', startISO).lte('credit_submitted_date', endISO),
+            sfmSb.from('sanctions').select('sanction_date, created_at').gte('created_at', startISO).lte('created_at', endISO)
+          ]);
+
+          function fill(bucket, rows, field) {
+            (rows || []).forEach(function(r) {
+              if (!r[field]) return;
+              const k = new Date(r[field]).toISOString().slice(0, 10);
+              if (bucket[k] !== undefined) bucket[k] += 1;
+            });
+          }
+          fill(leadsB, leadsRes.data, 'created_at');
+          fill(legalB, legalRes.data, 'legal_submitted_date');
+          fill(techB, techRes.data, 'technical_submitted_date');
+          fill(creditB, creditRes.data, 'credit_submitted_date');
+          (sanctionRes.data || []).forEach(function(r) {
+            const val = r.sanction_date || r.created_at;
+            if (!val) return;
+            const k = new Date(val).toISOString().slice(0, 10);
+            if (sanctionB[k] !== undefined) sanctionB[k] += 1;
+          });
+        } else {
+          // Fallback to local leads if Supabase isn't reachable
+          leads.forEach(function(l) {
+            const k = new Date(l.createdAt).toISOString().slice(0, 10);
+            if (leadsB[k] !== undefined) leadsB[k] += 1;
+          });
+        }
+
+        const sortedKeys = dayKeys.slice().sort();
+        let sampledKeys = sortedKeys;
+        if (sortedKeys.length > maxPoints) {
+          const step2 = Math.ceil(sortedKeys.length / maxPoints);
+          sampledKeys = sortedKeys.filter(function(_, i) { return i % step2 === 0; });
+        }
+
+        return {
+          labels: sampledKeys.map(function(k) { return k.slice(5); }),
+          leadsCreated: sampledKeys.map(function(k) { return leadsB[k] || 0; }),
+          legal: sampledKeys.map(function(k) { return legalB[k] || 0; }),
+          technical: sampledKeys.map(function(k) { return techB[k] || 0; }),
+          credit: sampledKeys.map(function(k) { return creditB[k] || 0; }),
+          sanctioned: sampledKeys.map(function(k) { return sanctionB[k] || 0; })
+        };
+      }
+
+      async function renderProductionChart(period) {
+        const data = await getProductionDataMulti(period);
         const ctx = document.getElementById('productionChart').getContext('2d');
 
         if (productionChart) {
           productionChart.destroy();
         }
 
-        const isDark = true;
         const textColor = '#94a3b8';
         const gridColor = 'rgba(255,215,0,0.08)';
 
+        const series = [
+          { label: 'Leads Created', data: data.leadsCreated, color: '#c9a84c' },
+          { label: 'Legal', data: data.legal, color: '#4c9ac9' },
+          { label: 'Technical', data: data.technical, color: '#c9784c' },
+          { label: 'Credit', data: data.credit, color: '#7ac94c' },
+          { label: 'Sanctioned', data: data.sanctioned, color: '#c94c8f' }
+        ];
+
         productionChart = new Chart(ctx, {
-          type: 'bar',
+          type: 'line',
           data: {
             labels: data.labels,
-            datasets: [{
-              label: 'Leads Created',
-              data: data.data,
-              backgroundColor: 'rgba(201, 168, 76, 0.6)',
-              borderColor: '#c9a84c',
-              borderWidth: 1.5,
-              borderRadius: 3,
-            }]
+            datasets: series.map(function(s) {
+              return {
+                label: s.label,
+                data: s.data,
+                borderColor: s.color,
+                backgroundColor: s.color + '26',
+                borderWidth: 1.75,
+                pointRadius: 2,
+                tension: 0.3,
+                fill: false
+              };
+            })
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
               legend: {
-                labels: { color: textColor, font: { size: 9 } }
+                labels: { color: textColor, font: { size: 9 }, boxWidth: 10 }
               }
             },
             scales: {
@@ -1281,7 +1326,8 @@
               },
               y: {
                 grid: { color: gridColor },
-                ticks: { color: textColor, font: { size: 8 }, stepSize: 1 }
+                ticks: { color: textColor, font: { size: 8 }, stepSize: 1 },
+                beginAtZero: true
               }
             }
           }
