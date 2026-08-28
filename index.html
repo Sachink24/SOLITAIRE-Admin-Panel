@@ -983,6 +983,7 @@
             <button class="btn-sm gold" onclick="generateLegalReportPDF()" style="padding:12px;font-size:13px;"><i class="fas fa-gavel"></i> Legal Report</button>
             <button class="btn-sm blue" onclick="generateTechnicalReportPDF()" style="padding:12px;font-size:13px;"><i class="fas fa-tools"></i> Technical Report</button>
             <button class="btn-sm success" onclick="generateCreditReportPDF()" style="padding:12px;font-size:13px;"><i class="fas fa-coins"></i> Credit Report</button>
+            <button class="btn-sm warning" onclick="generateSanctionLetterPDF()" style="padding:12px;font-size:13px;"><i class="fas fa-stamp"></i> Sanction Letter</button>
           </div>
         </div>
         <div class="card">
@@ -1848,6 +1849,19 @@
         return (data && data[0]) || null;
       }
 
+      // Pulls the final sanction record from the `sanctions` register (source
+      // of truth) by loan app no., joined with the lead for borrower details.
+      async function fetchSanctionByAppNo(appNo) {
+        if (!sfmSb) { toast('⚠️ Could not connect to Supabase'); return null; }
+        const { data, error } = await sfmSb.from('sanctions')
+          .select('*, leads(borrower, loan_type, credit_loan_amount, credit_roi, credit_term_months)')
+          .eq('application_no', appNo)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        if (error) { toast('⚠️ ' + error.message); return null; }
+        return (data && data[0]) || null;
+      }
+
       function pushRow(rows, label, value) {
         if (value === undefined || value === null || value === '') return;
         rows.push([label, String(value)]);
@@ -2278,6 +2292,72 @@
         buildBrandedPDF(cfg).save('Credit_Report_' + refNo + '.pdf');
         logReportHistory({ type: 'credit_report', leadName: name, date: new Date().toISOString(), refNo: refNo, fileNo: appNo, cfg: cfg });
         toast('📄 Credit report generated');
+      };
+
+      // Fetches from the SANCTIONS REGISTER (public.sanctions — the final,
+      // approved source of truth) by loan app no. and renders the branded
+      // Sanction Letter PDF. Any mismatch between the sanctioned amount/ROI
+      // and the credit-approved figures on the linked lead is flagged in
+      // the conditions section rather than silently hidden.
+      window.generateSanctionLetterPDF = async function () {
+        const appNo = (document.getElementById('reportAppNo').value || '').trim();
+        if (!appNo) { toast('⚠️ Enter a Loan App No first'); return; }
+        toast('⏳ Fetching sanction record for ' + appNo + '…');
+        const s = await fetchSanctionByAppNo(appNo);
+        if (!s) { toast('⚠️ No sanction record found for ' + appNo + ' in the sanctions register'); return; }
+
+        const lead = s.leads || {};
+        const name = (lead.borrower && lead.borrower.name) || '[Borrower]';
+        const refNo = nextRefNo('SL');
+        const dated = s.sanction_date
+          ? new Date(s.sanction_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+          : new Date(s.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+        const rows = [];
+        pushRow(rows, 'Borrower', name);
+        pushRow(rows, 'Loan type', lead.loan_type);
+        pushRow(rows, 'Bank / Institution', s.banker);
+        pushRow(rows, 'Sanctioned loan amount', fmtINR(s.sanction_amount));
+        pushRow(rows, 'Rate of interest (p.a.)', s.roi != null ? s.roi + '%' : '');
+        pushRow(rows, 'Tenure (months)', s.tenure_months);
+        pushRow(rows, 'EMI (₹/month)', fmtINR(s.emi));
+        pushRow(rows, 'Processing fee', fmtINR(s.processing_fee));
+        pushRow(rows, 'Insurance', fmtINR(s.insurance));
+        pushRow(rows, 'Sanction reference no.', s.sanction_reference_no);
+        pushRow(rows, 'Sanction date', dated);
+        pushRow(rows, 'Approved by', s.approved_by);
+
+        // Cross-check against credit-approved figures on the lead; flag any
+        // deviation as an explicit condition rather than leaving it silent.
+        const notes = [];
+        if (lead.credit_loan_amount != null && Number(lead.credit_loan_amount) !== Number(s.sanction_amount)) {
+          notes.push('Note: Sanctioned amount (' + fmtINR(s.sanction_amount) + ') differs from the credit-approved amount (' + fmtINR(lead.credit_loan_amount) + ').');
+        }
+        if (lead.credit_roi != null && Number(lead.credit_roi) !== Number(s.roi)) {
+          notes.push('Note: Sanctioned ROI (' + s.roi + '%) differs from the credit-approved ROI (' + lead.credit_roi + '%).');
+        }
+
+        const cfg = {
+          refNo: refNo, fileNo: appNo, dated: dated,
+          title: 'SANCTION LETTER',
+          toLine: 'Sanction letter issued to ' + name + ' under reference ' + appNo + '.',
+          introParagraph: 'We are pleased to inform you that, further to legal, technical and credit evaluation, the loan application referenced above has been sanctioned on the following terms and conditions.',
+          tableTitle: 'SANCTION TERMS',
+          tableRows: rows.length ? rows : [['Borrower', name]],
+          conditionsTitle: 'CONDITIONS',
+          conditions: splitToConditions((s.conditions || s.final_remarks || '') + (notes.length ? '\n' + notes.join('\n') : ''), [
+            'This sanction is subject to execution of standard loan documentation and creation of security as required by the lender.',
+            'Disbursement is subject to satisfactory legal and technical clearance and compliance with lender policy at the time of disbursement.',
+            'Terms are subject to revision as per lender policy prevailing at the time of actual disbursement.'
+          ].concat(notes)),
+          statusTitle: 'STATUS',
+          statusLine: 'Sanction status: ' + (s.status || 'sanctioned') + '.',
+          footerNote: 'Solitaire Finz Mart · Loan origination & distribution services · This letter is computer generated from the sanctions register and is valid without a physical signature. Final terms remain subject to the sanctioning lender\u2019s own letter and policy.'
+        };
+
+        buildBrandedPDF(cfg).save('Sanction_Letter_' + refNo + '.pdf');
+        logReportHistory({ type: 'sanction_letter', leadName: name, date: new Date().toISOString(), refNo: refNo, fileNo: appNo, cfg: cfg });
+        toast('📄 Sanction letter generated');
       };
 
       window.redownloadReport = function (index) {
