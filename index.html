@@ -1701,11 +1701,11 @@
         const lead = leads.find(function(l) { return l.id === id; });
         if (!lead) return;
         const newStage = prompt('Update stage for ' + lead.borrower.name + ':\nCurrent: ' + lead.stage +
-          '\nEnter new stage (New, Legal Approved, Technical Approved, Approved, Declined):', lead.stage);
+          '\nEnter new stage (New, Legal Approved, Technical Approved, SANCTIONED, Declined):', lead.stage);
         if (newStage && newStage !== lead.stage) {
           lead.stage = newStage;
-          if (newStage === 'Approved') lead.adminStatus = 'approved';
-          if (newStage === 'Declined') lead.adminStatus = 'declined';
+          if (newStage === 'Approved') lead.adminStatus = 'SANCTIONED';
+          if (newStage === 'Declined') lead.adminStatus = 'sanctioned';
           persistAll();
           addFeed('✏️ Lead ' + lead.borrower.name + ' stage updated to ' + newStage);
           renderAll();
