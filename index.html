@@ -875,6 +875,11 @@
           <div class="stat-box"><div class="num" id="statApproved">0</div><div class="label">SANCTIONED</div></div>
           <div class="stat-box"><div class="num" id="statPending">0</div><div class="label">Pending</div></div>
         </div>
+        <div class="stat-grid">
+          <div class="stat-box"><div class="num" id="statLegal">0</div><div class="label">Legal Approved</div></div>
+          <div class="stat-box"><div class="num" id="statTechnical">0</div><div class="label">Technical Approved</div></div>
+          <div class="stat-box"><div class="num" id="statCredit">0</div><div class="label">Credit Approved</div></div>
+        </div>
 
         <!-- Production Chart -->
         <div class="card">
@@ -1499,6 +1504,7 @@
         document.getElementById('statLeads').textContent = total;
         document.getElementById('statApproved').textContent = approved;
         document.getElementById('statPending').textContent = pending;
+        loadDashboardTeamStats();
 
         const feed = document.getElementById('recentFeed');
         if (feedEntries.length === 0) { feed.innerHTML = '<div style="color:#6a5f48;">No activity yet</div>'; return; }
@@ -1876,6 +1882,24 @@
         if (v === undefined || v === null || v === '') return '';
         const n = Number(v);
         return isNaN(n) ? String(v) : ('INR ' + n.toLocaleString('en-IN'));
+      }
+
+      // Live counts of Legal/Technical/Credit approved leads, pulled
+      // straight from the real production `leads` table (case-insensitive,
+      // since values have been entered as both 'approved' and 'Approved').
+      async function loadDashboardTeamStats() {
+        if (!sfmSb) return;
+        const [legalRes, techRes, creditRes] = await Promise.all([
+          sfmSb.from('leads').select('id', { count: 'exact', head: true }).ilike('legal_status', 'approved'),
+          sfmSb.from('leads').select('id', { count: 'exact', head: true }).ilike('technical_status', 'approved'),
+          sfmSb.from('leads').select('id', { count: 'exact', head: true }).ilike('credit_status', 'approved')
+        ]);
+        const legalEl = document.getElementById('statLegal');
+        const techEl = document.getElementById('statTechnical');
+        const creditEl = document.getElementById('statCredit');
+        if (legalEl) legalEl.textContent = legalRes.error ? '—' : (legalRes.count || 0);
+        if (techEl) techEl.textContent = techRes.error ? '—' : (techRes.count || 0);
+        if (creditEl) creditEl.textContent = creditRes.error ? '—' : (creditRes.count || 0);
       }
 
       // ================================================================
