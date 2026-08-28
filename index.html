@@ -863,6 +863,7 @@
       <button data-tab="leads"><i class="fas fa-users"></i> Leads</button>
       <button data-tab="team"><i class="fas fa-users-cog"></i> Team</button>
       <button data-tab="documents"><i class="fas fa-file-invoice"></i> Docs</button>
+      <button data-tab="sanctions"><i class="fas fa-stamp"></i> Sanctions</button>
     </div>
 
     <!-- CONTENT -->
@@ -987,6 +988,41 @@
         <div class="card">
           <div class="card-title"><i class="fas fa-history"></i> Generated History</div>
           <div id="docHistory" style="font-size:12px; color:#6a5f48;">No documents generated yet.</div>
+        </div>
+      </div>
+
+      <!-- SANCTIONS -->
+      <div class="tab-pane" id="tab-sanctions">
+        <div class="card">
+          <div class="card-title"><i class="fas fa-stamp"></i> Sanction Register</div>
+          <div style="font-size:11px;color:#6a5f48;margin-bottom:8px;">Pulled live from the <b>sanctions</b> table, cross-verified against the linked lead's credit-approved amount &amp; ROI.</div>
+          <div style="display:flex; gap:8px; margin-bottom:10px;">
+            <button class="btn-sm gold" onclick="loadSanctionsRegister()"><i class="fas fa-sync"></i> Refresh</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>App No.</th>
+                  <th>Lead ID</th>
+                  <th>Borrower</th>
+                  <th>Bank</th>
+                  <th>Sanction Amt</th>
+                  <th>ROI</th>
+                  <th>Tenure</th>
+                  <th>EMI</th>
+                  <th>Sanction Date</th>
+                  <th>Status</th>
+                  <th>Processing Fees</th>
+                  <th>Insurance</th>
+                  <th>Sanction Condition</th>
+                </tr>
+              </thead>
+              <tbody id="sanctionsTableBody">
+                <tr><td colspan="13" style="text-align:center;color:#6a5f48;">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -1828,6 +1864,68 @@
         return isNaN(n) ? String(v) : ('INR ' + n.toLocaleString('en-IN'));
       }
 
+      // ================================================================
+      // SANCTIONS REGISTER — pulls from `sanctions` (final source of truth),
+      // cross-verified against the linked lead's credit-approved amount/ROI.
+      // Sequence: App No, Lead ID, Borrower, Bank, Sanction Amt, ROI,
+      // Tenure, EMI, Sanction Date, Status, Processing Fees, Insurance,
+      // Sanction Condition.
+      // ================================================================
+      async function loadSanctionsRegister() {
+        const tbody = document.getElementById('sanctionsTableBody');
+        if (!tbody) return;
+        if (!sfmSb) { tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:#e05252;">Could not connect to Supabase</td></tr>'; return; }
+        tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:#6a5f48;">Loading...</td></tr>';
+
+        const { data, error } = await sfmSb
+          .from('sanctions')
+          .select('*, leads(borrower, credit_loan_amount, credit_roi, credit_term_months)')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:#e05252;">' + escapeHtml(error.message) + '</td></tr>';
+          return;
+        }
+        if (!data || data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:#6a5f48;">No sanctions recorded yet.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.map(function (s) {
+          const lead = s.leads || {};
+          const borrowerName = (lead.borrower && lead.borrower.name) ? lead.borrower.name : '—';
+
+          // Cross-verify sanctioned amount/ROI against credit-approved figures
+          const amtMismatch = lead.credit_loan_amount != null && Number(lead.credit_loan_amount) !== Number(s.sanction_amount);
+          const roiMismatch = lead.credit_roi != null && Number(lead.credit_roi) !== Number(s.roi);
+
+          const statusClass = s.status === 'sanctioned' ? 'approved' : s.status === 'on_hold' ? 'pending' : 'pending';
+
+          const amtCell = fmtINR(s.sanction_amount) + (amtMismatch
+            ? ' <span title="Credit approved: ' + fmtINR(lead.credit_loan_amount) + '" style="color:#e0a852;font-size:10px;">⚠</span>'
+            : '');
+          const roiCell = (s.roi != null ? s.roi + '%' : '—') + (roiMismatch
+            ? ' <span title="Credit approved: ' + lead.credit_roi + '%" style="color:#e0a852;font-size:10px;">⚠</span>'
+            : '');
+
+          return '<tr>' +
+            '<td>' + escapeHtml(s.application_no || '—') + '</td>' +
+            '<td>' + escapeHtml(String(s.lead_id != null ? s.lead_id : '—')) + '</td>' +
+            '<td>' + escapeHtml(borrowerName) + '</td>' +
+            '<td>' + escapeHtml(s.banker || '—') + '</td>' +
+            '<td>' + amtCell + '</td>' +
+            '<td>' + roiCell + '</td>' +
+            '<td>' + escapeHtml(s.tenure_months != null ? s.tenure_months + ' mo' : '—') + '</td>' +
+            '<td>' + fmtINR(s.emi) + '</td>' +
+            '<td>' + escapeHtml(s.sanction_date || '—') + '</td>' +
+            '<td><span class="badge ' + statusClass + '">' + escapeHtml(s.status || '—') + '</span></td>' +
+            '<td>' + fmtINR(s.processing_fee) + '</td>' +
+            '<td>' + fmtINR(s.insurance) + '</td>' +
+            '<td>' + escapeHtml(s.conditions || s.final_remarks || '—') + '</td>' +
+            '</tr>';
+        }).join('');
+      }
+
       // Matches the Sanction Letter letterhead format: diamond mark,
       // reference/file numbers, dated line, bordered term tables,
       // numbered conditions, status line, footer disclaimer.
@@ -2264,6 +2362,9 @@
           // Re-render chart if switching to dashboard
           if (tab === 'dashboard') {
             setTimeout(function() { renderProductionChart(currentPeriod); }, 100);
+          }
+          if (tab === 'sanctions') {
+            loadSanctionsRegister();
           }
         });
       });
