@@ -1147,7 +1147,7 @@
       // TOP PERFORMERS
       // ================================================================
       function getTopPerformers(teamType) {
-        const approved = leads.filter(function(l) { return l.stage === 'Approved'; });
+        const approved = leads.filter(function(l) { return l.stage === 'SANCTIONED'; });
         const counts = {};
         approved.forEach(function(l) {
           let email = null;
@@ -1457,8 +1457,8 @@
       // ================================================================
       function renderDashboard() {
         const total = leads.length;
-        const approved = leads.filter(function(l) { return l.stage === 'Approved'; }).length;
-        const pending = leads.filter(function(l) { return l.stage !== 'Approved' && l.stage !== 'Declined'; }).length;
+        const approved = leads.filter(function(l) { return l.stage === 'SANCTIONED'; }).length;
+        const pending = leads.filter(function(l) { return l.stage !== 'SANCTIONED' && l.stage !== 'Declined'; }).length;
         document.getElementById('statLeads').textContent = total;
         document.getElementById('statApproved').textContent = approved;
         document.getElementById('statPending').textContent = pending;
@@ -1493,7 +1493,7 @@
         }
 
         container.innerHTML = filtered.map(function(l) {
-          const statusClass = l.stage === 'Approved' ? 'approved' : l.stage === 'Declined' ? 'declined' : 'pending';
+          const statusClass = l.stage === 'SANCTIONED' ? 'approved' : l.stage === 'Declined' ? 'declined' : 'pending';
           return '<div class="lead-row" data-id="' + l.id + '">' +
             '<div class="lead-info"><span class="name">' + escapeHtml(l.borrower.name) + '</span>' +
             '<span class="meta">' + escapeHtml(l.borrower.phone) + ' · ' + escapeHtml(l.loanType) + ' · ₹' + (l
