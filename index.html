@@ -871,7 +871,7 @@
       <div class="tab-pane active" id="tab-dashboard">
         <div class="stat-grid">
           <div class="stat-box"><div class="num" id="statLeads">0</div><div class="label">Total Leads</div></div>
-          <div class="stat-box"><div class="num" id="statApproved">0</div><div class="label">Approved</div></div>
+          <div class="stat-box"><div class="num" id="statApproved">0</div><div class="label">SANCTIONED</div></div>
           <div class="stat-box"><div class="num" id="statPending">0</div><div class="label">Pending</div></div>
         </div>
 
@@ -1147,7 +1147,7 @@
       // TOP PERFORMERS
       // ================================================================
       function getTopPerformers(teamType) {
-        const approved = leads.filter(function(l) { return l.stage === 'Approved'; });
+        const approved = leads.filter(function(l) { return l.stage === 'SANCTIONED'; });
         const counts = {};
         approved.forEach(function(l) {
           let email = null;
@@ -1457,8 +1457,8 @@
       // ================================================================
       function renderDashboard() {
         const total = leads.length;
-        const approved = leads.filter(function(l) { return l.stage === 'Approved'; }).length;
-        const pending = leads.filter(function(l) { return l.stage !== 'Approved' && l.stage !== 'Declined'; }).length;
+        const approved = leads.filter(function(l) { return l.stage === 'SANCTIONED'; }).length;
+        const pending = leads.filter(function(l) { return l.stage !== 'SANCTIONED' && l.stage !== 'Declined'; }).length;
         document.getElementById('statLeads').textContent = total;
         document.getElementById('statApproved').textContent = approved;
         document.getElementById('statPending').textContent = pending;
@@ -1493,7 +1493,7 @@
         }
 
         container.innerHTML = filtered.map(function(l) {
-          const statusClass = l.stage === 'Approved' ? 'approved' : l.stage === 'Declined' ? 'declined' : 'pending';
+          const statusClass = l.stage === 'SANCTIONED' ? 'approved' : l.stage === 'Declined' ? 'declined' : 'pending';
           return '<div class="lead-row" data-id="' + l.id + '">' +
             '<div class="lead-info"><span class="name">' + escapeHtml(l.borrower.name) + '</span>' +
             '<span class="meta">' + escapeHtml(l.borrower.phone) + ' · ' + escapeHtml(l.loanType) + ' · ₹' + (l
@@ -1701,11 +1701,11 @@
         const lead = leads.find(function(l) { return l.id === id; });
         if (!lead) return;
         const newStage = prompt('Update stage for ' + lead.borrower.name + ':\nCurrent: ' + lead.stage +
-          '\nEnter new stage (New, Legal Approved, Technical Approved, Approved, Declined):', lead.stage);
+          '\nEnter new stage (New, Legal Approved, Technical Approved, SANCTIONED, Declined):', lead.stage);
         if (newStage && newStage !== lead.stage) {
           lead.stage = newStage;
-          if (newStage === 'Approved') lead.adminStatus = 'approved';
-          if (newStage === 'Declined') lead.adminStatus = 'declined';
+          if (newStage === 'Approved') lead.adminStatus = 'SANCTIONED';
+          if (newStage === 'Declined') lead.adminStatus = 'sanctioned';
           persistAll();
           addFeed('✏️ Lead ' + lead.borrower.name + ' stage updated to ' + newStage);
           renderAll();
@@ -1729,202 +1729,28 @@
       // ================================================================
       let docTypeCache = '';
 
-      window.openDocModal = async function(type) {
+      window.openDocModal = function(type) {
         docTypeCache = type;
-
         const modal = document.getElementById('modalOverlay');
+        document.getElementById('modalTitle').innerHTML = '<i class="fas fa-file"></i> ' + type.toUpperCase();
         const body = document.getElementById('modalBody');
 
-        document.getElementById('modalTitle').innerHTML =
-          '<i class="fas fa-file"></i> ' + type.toUpperCase();
-
         const latest = leads.length ? leads[leads.length - 1] : null;
-        const name = latest && latest.borrower ? latest.borrower.name : '[Borrower Name]';
-        const phone = latest && latest.borrower ? latest.borrower.phone : '[Phone]';
-        const today = new Date().toLocaleDateString('en-IN', {
-          day: '2-digit', month: 'short', year: 'numeric'
-        });
-
-        // ================================================================
-        // PROVISIONAL SANCTION LETTER
-        // Fetch the actual SANCTIONED record from public.sanctions.
-        // ================================================================
-        if (type === 'provisional') {
-          modal.classList.add('show');
-          body.innerHTML = '<div class="doc-preview">Loading sanction data...</div>';
-
-          if (!sfmSb) {
-            body.innerHTML = '<div class="doc-preview">Supabase connection is not available.</div>';
-            toast('⚠️ Could not connect to Supabase');
-            return;
-          }
-
-          try {
-            let sanction = null;
-
-            // First try to fetch the sanction belonging to the currently selected/latest lead.
-            if (latest && latest.id) {
-              const { data: leadSanctions, error: leadError } = await sfmSb
-                .from('sanctions')
-                .select('*')
-                .eq('lead_id', latest.id)
-                .order('created_at', { ascending: false })
-                .limit(1);
-
-              if (!leadError && leadSanctions && leadSanctions.length) {
-                sanction = leadSanctions[0];
-              }
-            }
-
-            // Fallback: latest SANCTIONED record.
-            if (!sanction) {
-              const { data: sanctionedRows, error: sanctionedError } = await sfmSb
-                .from('sanctions')
-                .select('*')
-                .eq('status', 'sanctioned')
-                .order('created_at', { ascending: false })
-                .limit(1);
-
-              if (sanctionedError) throw sanctionedError;
-              sanction = sanctionedRows && sanctionedRows.length ? sanctionedRows[0] : null;
-            }
-
-            if (!sanction) {
-              body.innerHTML = '<div class="doc-preview">No SANCTIONED record found for this case.</div>';
-              toast('⚠️ No SANCTIONED record found');
-              return;
-            }
-
-            // Support common column-name variations without changing the database.
-            const pick = function(obj, names, fallback) {
-              for (let i = 0; i < names.length; i++) {
-                const value = obj[names[i]];
-                if (value !== undefined && value !== null && value !== '') return value;
-              }
-              return fallback;
-            };
-
-            const formatINR = function(value) {
-              if (value === undefined || value === null || value === '') return '—';
-              const n = Number(value);
-              if (!Number.isNaN(n)) return '₹' + n.toLocaleString('en-IN');
-              return String(value);
-            };
-
-            const formatDate = function(value) {
-              if (!value) return today;
-              const d = new Date(value);
-              return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleDateString('en-IN', {
-                day: '2-digit', month: 'short', year: 'numeric'
-              });
-            };
-
-            const sanctionAmount = pick(sanction, ['sanction_amount', 'sanctioned_amount', 'approved_amount'], 0);
-            const roi = pick(sanction, ['roi', 'interest_rate', 'rate_of_interest'], '—');
-            const tenure = pick(sanction, ['tenure_months', 'tenure', 'loan_tenure'], '—');
-            const emi = pick(sanction, ['emi', 'monthly_emi', 'emi_amount'], 0);
-            const processingFee = pick(sanction, ['processing_fee', 'processing_fees', 'fee_amount'], 0);
-            const banker = pick(sanction, ['banker', 'banker_name', 'lender_name', 'bank_name'], '—');
-            const sanctionRef = pick(sanction, ['sanction_reference_no', 'sanction_reference', 'sanction_no', 'reference_no'], '—');
-            const applicationNo = pick(sanction, ['application_no', 'loan_app_no', 'loan_application_no'],
-              latest && (latest.application_no || latest.applicationNo) ? (latest.application_no || latest.applicationNo) : '—');
-            const sanctionDate = formatDate(pick(sanction, ['sanction_date', 'approved_at', 'created_at'], null));
-            const remarks = pick(sanction, ['final_remarks', 'remarks', 'sanction_remarks', 'comments'], 'Subject to lender terms and conditions.');
-            const insurance = pick(sanction, ['insurance', 'insurance_amount', 'insurance_premium'], 'As applicable');
-
-            const borrowerName = latest && latest.borrower ? latest.borrower.name : '[Borrower Name]';
-            const borrowerPhone = latest && latest.borrower ? latest.borrower.phone : '[Phone]';
-
-            const content =
-              'SOLITAIRE FINZ MART\n' +
-              'PROVISIONAL SANCTION LETTER\n\n' +
-              'Date: ' + sanctionDate + '\n' +
-              'Application No: ' + applicationNo + '\n' +
-              'Sanction Reference No: ' + sanctionRef + '\n\n' +
-              'To,\n' + borrowerName + '\n' + borrowerPhone + '\n\n' +
-              'Subject: Provisional Sanction of Loan\n\n' +
-              'Dear Sir/Madam,\n\n' +
-              'We are pleased to inform you that your loan application has been SANCTIONED, subject to the terms and conditions mentioned below.\n\n' +
-              'SANCTION DETAILS\n' +
-              '----------------------------------------\n' +
-              'Sanctioned Amount: ' + formatINR(sanctionAmount) + '\n' +
-              'Rate of Interest: ' + roi + '% p.a.\n' +
-              'Tenure: ' + tenure + ' Months\n' +
-              'EMI: ' + formatINR(emi) + '\n' +
-              'Processing Fee: ' + formatINR(processingFee) + '\n' +
-              'Insurance: ' + (insurance === 'As applicable' ? insurance : formatINR(insurance)) + '\n' +
-              'Bank / Lender / Banker: ' + banker + '\n' +
-              'Sanction Reference No: ' + sanctionRef + '\n' +
-              'Sanction Date: ' + sanctionDate + '\n\n' +
-              'CONDITIONS / REMARKS\n' +
-              '----------------------------------------\n' +
-              remarks + '\n\n' +
-              'This provisional sanction is subject to completion of all required documentation, legal and technical verification, lender conditions, valuation requirements and execution of the necessary loan documents.\n\n' +
-              'Yours sincerely,\n' +
-              'SOLITAIRE FINZ MART\n' +
-              'Authorized Signatory';
-
-            body.innerHTML = '<div class="doc-preview">' + escapeHtml(content) + '</div>';
-            window._docContent = content;
-            window._docLead = latest;
-            window._docSanction = sanction;
-
-            document.getElementById('modalCopyBtn').onclick = function() {
-              navigator.clipboard.writeText(window._docContent).then(function() {
-                toast('📋 Copied');
-              });
-            };
-
-            document.getElementById('modalDownloadBtn').onclick = function() {
-              const blob = new Blob([window._docContent], { type: 'text/plain' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = 'Provisional_Sanction_' + String(applicationNo).replace(/[^a-zA-Z0-9_-]/g, '_') + '.txt';
-              a.click();
-              URL.revokeObjectURL(url);
-            };
-
-            document.getElementById('modalWhatsAppBtn').onclick = function() {
-              const mobile = window._docLead && window._docLead.borrower && window._docLead.borrower.phone
-                ? window._docLead.borrower.phone.replace(/[^0-9]/g, '')
-                : '';
-              if (!mobile) {
-                toast('⚠️ No phone number available');
-                return;
-              }
-              window.open('https://wa.me/' + mobile + '?text=' + encodeURIComponent(window._docContent), '_blank');
-            };
-
-            docHistory.push({
-              type: 'provisional',
-              leadName: borrowerName,
-              applicationNo: applicationNo,
-              sanctionReference: sanctionRef,
-              date: new Date().toISOString()
-            });
-            persistAll();
-            renderDocs();
-            return;
-
-          } catch (err) {
-            console.error('Sanction letter error:', err);
-            body.innerHTML = '<div class="doc-preview">Unable to load sanction data.<br><br>' + escapeHtml(err.message || String(err)) + '</div>';
-            toast('⚠️ Failed to generate sanction letter');
-            return;
-          }
-        }
-
-        // ================================================================
-        // INVOICE / QUOTATION — existing local-lead behaviour
-        // ================================================================
+        const name = latest ? latest.borrower.name : '[Borrower Name]';
+        const phone = latest ? latest.borrower.phone : '[Phone]';
         const amount = latest ? '₹' + (latest.loanAmount / 100000).toFixed(1) + 'L' : '[Amount]';
-        let content = '';
+        const today = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
-        if (type === 'invoice') {
+        let content = '';
+        if (type === 'provisional') {
+          content = 'SOLITAIRE FINZ MART\nProvisional Sanction Letter\n\nDate: ' + today +
+            '\n\nTo,\n' + name + '\n' + phone +
+            '\n\nSubject: Provisional Sanction of Loan\n\nDear Sir/Madam,\n\nWe are pleased to inform you that your loan application has been provisionally sanctioned for an amount of ' +
+            amount + ' subject to the following conditions:\n\n1. Submission of all required documents\n2. Legal and technical verification clearance\n3. Property valuation report\n4. Execution of loan documents\n\nThis sanction is valid for 30 days from the date of this letter.\n\nYours sincerely,\nSolitaire Finz Mart\nAuthorized Signatory';
+        } else if (type === 'invoice') {
           content = 'SOLITAIRE FINZ MART\nInvoice\n\nInvoice No: SFM/INV/' + Date.now().toString().slice(-6) +
             '\nDate: ' + today + '\n\nClient: ' + name + '\nPhone: ' + phone +
-            '\n\nDescription:\nLoan Processing Fee for ' + amount + ' loan application\n\nAmount: ₹5,000.00\nGST (18%): ₹900.00\nTotal: ₹5,900.00\n\nPayment Terms: Within 7 days\n\nThank you for your business.';
+            '\n\nDescription:\nLoan Processing Fee for ' + amount + ' loan application\n\nAmount: ₹5,000.00\nGST (18%): ₹900.00\nTotal: ₹5,900.00\n\nPayment Terms: Within 7 days\n\nBank Details:\nAccount Name: Solitaire Finz Mart\nAccount No: 1234567890\nIFSC: SBIN0001234\n\nThank you for your business.';
         } else if (type === 'quotation') {
           content = 'SOLITAIRE FINZ MART\nQuotation\n\nQuote No: SFM/Q/' + Date.now().toString().slice(-6) +
             '\nDate: ' + today + '\n\nTo,\n' + name + '\n' + phone +
@@ -1936,6 +1762,7 @@
         body.innerHTML = '<div class="doc-preview">' + escapeHtml(content) + '</div>';
         window._docContent = content;
         window._docLead = latest;
+
         modal.classList.add('show');
 
         document.getElementById('modalCopyBtn').onclick = function() {
@@ -1951,12 +1778,11 @@
           URL.revokeObjectURL(url);
         };
         document.getElementById('modalWhatsAppBtn').onclick = function() {
-          const mobile = window._docLead && window._docLead.borrower && window._docLead.borrower.phone
-            ? window._docLead.borrower.phone.replace(/[^0-9]/g, '')
-            : '';
-          if (!mobile) { toast('⚠️ No phone number available'); return; }
-          window.open('https://wa.me/' + mobile + '?text=' + encodeURIComponent(window._docContent), '_blank');
+          const phone = window._docLead ? window._docLead.borrower.phone.replace(/[^0-9]/g, '') : '';
+          if (!phone) { toast('⚠️ No phone number available'); return; }
+          window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(window._docContent), '_blank');
         };
+
         docHistory.push({ type: type, leadName: latest ? latest.borrower.name : '—', date: new Date().toISOString() });
         persistAll();
         renderDocs();
