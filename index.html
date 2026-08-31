@@ -1969,7 +1969,7 @@
       async function fetchSanctionByAppNo(appNo) {
         if (!sfmSb) { toast('⚠️ Could not connect to Supabase'); return null; }
         const { data, error } = await sfmSb.from('sanctions')
-          .select('*, leads(borrower, loan_type, credit_loan_amount, credit_roi, credit_term_months)')
+          .select('*, leads(borrower, loan_type, credit_loan_amount, credit_roi, credit_term_months, co_applicants, property)')
           .eq('application_no', appNo)
           .order('created_at', { ascending: false })
           .limit(1);
