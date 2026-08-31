@@ -2219,6 +2219,27 @@
         });
         y += 8;
 
+        // Optional block between the terms table and the conditions —
+        // used by the Sanction Letter to carry applicant / co-applicant
+        // / collateral (property) address details.
+        if (cfg.extraSection && cfg.extraSection.rows && cfg.extraSection.rows.length) {
+          sectionHeader(cfg.extraSection.title);
+          doc.setFontSize(10);
+          cfg.extraSection.rows.forEach(function (row) {
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(60, 55, 40);
+            const valLines = doc.splitTextToSize(String(row[1]), rightX - marginX - labelW);
+            const rowH = Math.max(14, valLines.length * 13);
+            checkPageBreak(rowH);
+            doc.text(row[0], marginX, y);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(25, 25, 25);
+            doc.text(valLines, marginX + labelW, y);
+            y += rowH;
+          });
+          y += 8;
+        }
+
         sectionHeader(cfg.conditionsTitle);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
@@ -2485,6 +2506,34 @@
           notes.push('Note: Sanctioned ROI (' + s.roi + '%) differs from the credit-approved ROI (' + lead.credit_roi + '%).');
         }
 
+        // Applicant / co-applicant / collateral block — sits between the
+        // SANCTION TERMS table and CONDITIONS. Pulled straight off the
+        // linked lead's borrower, co_applicants and property JSON.
+        const borrower = lead.borrower || {};
+        const coApplicants = lead.co_applicants || [];
+        const property = lead.property || {};
+
+        function fullAddress(p) {
+          if (!p) return '';
+          return [p.location || p.address, p.city, p.state, p.pincode].filter(Boolean).join(', ');
+        }
+
+        const extraRows = [];
+        pushRow(extraRows, 'Applicant', borrower.name);
+        pushRow(extraRows, 'Current address', fullAddress(borrower) || '[Address not on file]');
+        pushRow(extraRows, 'Contact no.', borrower.phone);
+        pushRow(extraRows, 'Email ID', borrower.email);
+
+        coApplicants.forEach(function (co, i) {
+          const tag = coApplicants.length > 1 ? ' ' + (i + 1) : '';
+          pushRow(extraRows, 'Co-applicant' + tag, co.name);
+          pushRow(extraRows, 'Current address' + tag, fullAddress(co) || '[Address not on file]');
+          pushRow(extraRows, 'Contact no.' + tag, co.phone);
+          if (co.email) pushRow(extraRows, 'Email ID' + tag, co.email);
+        });
+
+        pushRow(extraRows, 'Collateral address', fullAddress(property) || '[Property address not on file]');
+
         const cfg = {
           refNo: refNo, fileNo: appNo, dated: dated,
           title: 'SANCTION LETTER',
@@ -2492,6 +2541,7 @@
           introParagraph: 'We are pleased to inform you that, further to legal, technical and credit evaluation, the loan application referenced above has been sanctioned on the following terms and conditions.',
           tableTitle: 'SANCTION TERMS',
           tableRows: rows.length ? rows : [['Borrower', name]],
+          extraSection: { title: 'APPLICANT & COLLATERAL DETAILS', rows: extraRows },
           conditionsTitle: 'CONDITIONS',
           conditions: splitToConditions((s.conditions || s.final_remarks || '') + (notes.length ? '\n' + notes.join('\n') : ''), [
             'This sanction is subject to execution of standard loan documentation and creation of security as required by the lender.',
