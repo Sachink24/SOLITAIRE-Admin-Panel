@@ -1367,25 +1367,59 @@
       const logoutBtn = document.getElementById('logoutBtn');
       const adminName = document.getElementById('adminName');
 
-      function doLogin() {
+      let liveRefreshTimer = null;
+
+      async function doLogin() {
         const email = adminEmail.value.trim().toLowerCase();
         const pass = adminPassword.value.trim();
         if (!email || !pass) { loginError.textContent = '⚠️ Please enter both email and password.'; return; }
-        const user = users[email];
-        if (!user || user.password !== pass) { loginError.textContent = '❌ Invalid credentials.'; return; }
-        if (user.role !== 'owner') { loginError.textContent = '❌ Access denied. Owner only.'; return; }
+        if (!sfmSb) { loginError.textContent = '⚠️ Could not connect to Supabase.'; return; }
+        loginBtn.disabled = true;
+        loginError.textContent = '';
+
+        // Real Supabase Auth session — required because every RLS policy
+        // on leads/users/team tables demands an 'authenticated' role.
+        const { data: authData, error: authError } = await sfmSb.auth.signInWithPassword({ email: email, password: pass });
+        if (authError || !authData || !authData.session) {
+          loginBtn.disabled = false;
+          loginError.textContent = '❌ Invalid credentials.';
+          return;
+        }
+
+        const { data: profile, error: profileError } = await sfmSb.from('users').select('*').eq('email', email).maybeSingle();
+        if (profileError || !profile || profile.role !== 'owner') {
+          await sfmSb.auth.signOut();
+          loginBtn.disabled = false;
+          loginError.textContent = '❌ Access denied. Owner only.';
+          return;
+        }
+
         currentUser = email;
+        users[email] = profile;
         loginOverlay.classList.add('hidden');
-        adminName.textContent = user.name || 'Owner';
-        toast('✅ Welcome, ' + (user.name || 'Owner'));
+        adminName.textContent = profile.name || 'Owner';
+        toast('✅ Welcome, ' + (profile.name || 'Owner'));
+        loginBtn.disabled = false;
+
+        await loadAllFromSupabase();
         renderAll();
         addFeed('👑 Owner logged in');
+
+        // Keep the panel current without a manual refresh — full
+        // real-time channel subscriptions are a natural next step, but a
+        // simple periodic reload is a safe, easy-to-verify first cut.
+        if (liveRefreshTimer) clearInterval(liveRefreshTimer);
+        liveRefreshTimer = setInterval(function() {
+          loadAllFromSupabase().then(renderAll);
+        }, 60000);
       }
 
       loginBtn.addEventListener('click', doLogin);
       adminPassword.addEventListener('keydown', function(e) { if (e.key === 'Enter') doLogin(); });
 
-      logoutBtn.addEventListener('click', function() {
+      logoutBtn.addEventListener('click', async function() {
+        if (sfmSb) await sfmSb.auth.signOut();
+        if (liveRefreshTimer) { clearInterval(liveRefreshTimer); liveRefreshTimer = null; }
         currentUser = null;
         loginOverlay.classList.remove('hidden');
         loginError.textContent = '';
@@ -1706,75 +1740,97 @@
       // ================================================================
       // TEAM ACTIONS
       // ================================================================
-      window.approveMember = function(type, idx) {
+      // All four actions below write to Supabase first, then reload the
+      // full live dataset rather than patching local state by hand — that
+      // guarantees the panel always reflects exactly what's in the
+      // database (correct ids, defaults, etc.) after every change.
+      window.approveMember = async function(type, idx) {
         const arr = type === 'legal' ? legalTeam : type === 'technical' ? technicalTeam : type === 'credit' ? creditTeam : businessAssociates;
         const member = arr[idx];
         if (!member) return;
-        member.status = 'active';
-        const user = users[member.email];
-        if (user) user.status = 'active';
-        persistAll();
+        if (sfmSb) {
+          const { error: e1 } = await sfmSb.from(teamTable(type)).update({ status: 'active' }).eq('id', member.id);
+          const { error: e2 } = await sfmSb.from('users').update({ status: 'active' }).eq('email', member.email);
+          if (e1 || e2) { toast('⚠️ Failed to update in database'); return; }
+        }
         addFeed('✅ ' + member.name + ' (' + type + ') approved');
+        await loadAllFromSupabase();
         renderAll();
         toast('✅ ' + member.name + ' approved');
       };
 
-      window.terminateMember = function(type, idx) {
+      window.terminateMember = async function(type, idx) {
         if (!confirm('Terminate this member?')) return;
         const arr = type === 'legal' ? legalTeam : type === 'technical' ? technicalTeam : type === 'credit' ? creditTeam : businessAssociates;
         const member = arr[idx];
         if (!member) return;
-        member.status = 'terminated';
-        const user = users[member.email];
-        if (user) user.status = 'terminated';
-        persistAll();
+        if (sfmSb) {
+          const { error: e1 } = await sfmSb.from(teamTable(type)).update({ status: 'terminated' }).eq('id', member.id);
+          const { error: e2 } = await sfmSb.from('users').update({ status: 'terminated' }).eq('email', member.email);
+          if (e1 || e2) { toast('⚠️ Failed to update in database'); return; }
+        }
         addFeed('⛔ ' + member.name + ' (' + type + ') terminated');
+        await loadAllFromSupabase();
         renderAll();
         toast('⛔ ' + member.name + ' terminated');
       };
 
-      window.reactivateMember = function(type, idx) {
+      window.reactivateMember = async function(type, idx) {
         const arr = type === 'legal' ? legalTeam : type === 'technical' ? technicalTeam : type === 'credit' ? creditTeam : businessAssociates;
         const member = arr[idx];
         if (!member) return;
-        member.status = 'active';
-        const user = users[member.email];
-        if (user) user.status = 'active';
-        persistAll();
+        if (sfmSb) {
+          const { error: e1 } = await sfmSb.from(teamTable(type)).update({ status: 'active' }).eq('id', member.id);
+          const { error: e2 } = await sfmSb.from('users').update({ status: 'active' }).eq('email', member.email);
+          if (e1 || e2) { toast('⚠️ Failed to update in database'); return; }
+        }
         addFeed('🔄 ' + member.name + ' (' + type + ') reactivated');
+        await loadAllFromSupabase();
         renderAll();
         toast('🔄 ' + member.name + ' reactivated');
       };
 
-      window.removeMember = function(type, idx) {
+      window.removeMember = async function(type, idx) {
         if (!confirm('Remove this member permanently?')) return;
         const arr = type === 'legal' ? legalTeam : type === 'technical' ? technicalTeam : type === 'credit' ? creditTeam : businessAssociates;
         const member = arr[idx];
         if (!member) return;
-        arr.splice(idx, 1);
-        delete users[member.email];
-        persistAll();
+        if (sfmSb) {
+          const { error: e1 } = await sfmSb.from(teamTable(type)).delete().eq('id', member.id);
+          const { error: e2 } = await sfmSb.from('users').delete().eq('email', member.email);
+          if (e1 || e2) { toast('⚠️ Failed to remove from database'); return; }
+        }
         addFeed('🗑️ ' + member.name + ' (' + type + ') removed');
+        await loadAllFromSupabase();
         renderAll();
         toast('🗑️ ' + member.name + ' removed');
       };
 
-      document.getElementById('addMemberBtn').addEventListener('click', function() {
+      document.getElementById('addMemberBtn').addEventListener('click', async function() {
         const name = document.getElementById('newMemberName').value.trim();
         const email = document.getElementById('newMemberEmail').value.trim().toLowerCase();
         const phone = document.getElementById('newMemberPhone').value.trim();
         const role = document.getElementById('newMemberRole').value;
         if (!name || !email || !phone) { toast('⚠️ All fields required'); return; }
         if (users[email]) { toast('⚠️ Email already registered'); return; }
-        users[email] = { password: 'Password@123', role: role, name: name, mobile: phone, status: 'pending' };
-        const newMember = { id: Date.now(), name: name, email: email, phone: phone, status: 'pending' };
-        if (role === 'legal') { legalTeam.push(newMember); } else if (role === 'technical') { technicalTeam.push(
-            newMember); } else if (role === 'credit') { creditTeam.push(newMember); } else { businessAssociates.push(newMember); }
-        persistAll();
+
+        if (sfmSb) {
+          const table = teamTable(role);
+          // business_associates uses a quoted "NAME" column; every other
+          // team table uses lowercase name.
+          const teamRow = table === 'business_associates'
+            ? { email: email, phone: phone, status: 'pending', NAME: name }
+            : { name: name, email: email, phone: phone, status: 'pending' };
+          const { error: teamErr } = await sfmSb.from(table).insert(teamRow);
+          const { error: userErr } = await sfmSb.from('users').insert({ email: email, password: 'Password@123', role: role, name: name, mobile: phone, status: 'pending' });
+          if (teamErr || userErr) { toast('⚠️ Failed to save to database: ' + ((teamErr || userErr).message || '')); return; }
+        }
+
         document.getElementById('newMemberName').value = '';
         document.getElementById('newMemberEmail').value = '';
         document.getElementById('newMemberPhone').value = '';
         addFeed('➕ Added ' + name + ' as ' + role);
+        await loadAllFromSupabase();
         renderAll();
         toast('✅ ' + name + ' added as ' + role);
       });
@@ -1849,29 +1905,34 @@
           (s.conditions || s.final_remarks ? '<div><strong style="color:#c9a84c;">Condition:</strong> ' + escapeHtml(s.conditions || s.final_remarks) + '</div>' : '');
       };
 
-      window.editLeadFromAdmin = function(id) {
+      window.editLeadFromAdmin = async function(id) {
         const lead = leads.find(function(l) { return l.id === id; });
         if (!lead) return;
         const newStage = prompt('Update stage for ' + lead.borrower.name + ':\nCurrent: ' + lead.stage +
           '\nEnter new stage (New, Legal Approved, Technical Approved, SANCTIONED, Declined):', lead.stage);
         if (newStage && newStage !== lead.stage) {
-          lead.stage = newStage;
-          if (newStage === 'Approved') lead.adminStatus = 'SANCTIONED';
-          if (newStage === 'Declined') lead.adminStatus = 'sanctioned';
-          persistAll();
+          const newAdminStatus = newStage === 'Approved' ? 'SANCTIONED' : newStage === 'Declined' ? 'sanctioned' : lead.adminStatus;
+          if (sfmSb) {
+            const { error } = await sfmSb.from('leads').update({ stage: newStage, admin_status: newAdminStatus }).eq('id', id);
+            if (error) { toast('⚠️ Failed to update in database: ' + error.message); return; }
+          }
           addFeed('✏️ Lead ' + lead.borrower.name + ' stage updated to ' + newStage);
+          await loadAllFromSupabase();
           renderAll();
           toast('✅ Stage updated to ' + newStage);
         }
       };
 
-      window.deleteLead = function(id) {
+      window.deleteLead = async function(id) {
         if (!confirm('Delete this lead permanently?')) return;
         const lead = leads.find(function(l) { return l.id === id; });
         if (!lead) return;
-        leads = leads.filter(function(l) { return l.id !== id; });
-        persistAll();
+        if (sfmSb) {
+          const { error } = await sfmSb.from('leads').delete().eq('id', id);
+          if (error) { toast('⚠️ Failed to delete from database: ' + error.message); return; }
+        }
         addFeed('🗑️ Lead ' + lead.borrower.name + ' deleted');
+        await loadAllFromSupabase();
         renderAll();
         toast('🗑️ Lead deleted');
       };
@@ -1941,16 +2002,93 @@
       };
 
       // ================================================================
-      // SUPABASE (read-only) — pulls real submitted Legal/Technical/Credit
-      // reports from the same project used by the evaluation portal
-      // (SOLITAIRE-Legal-Technical-Credit). This panel has no write access
-      // to that data; it only reads evaluation_reports for PDF generation.
+      // SUPABASE — the Owner Panel's single source of truth. Login runs
+      // through Supabase Auth (sfmSb.auth.signInWithPassword) so the
+      // session carries a real 'authenticated' role; every RLS policy on
+      // leads/users/legal_team/technical_team/credit_team/
+      // business_associates requires that role, so nothing here can be
+      // read or written pre-login as 'anon'. localStorage is kept only
+      // as an offline display cache (persistAll()), never the source of
+      // truth.
       // ================================================================
       const SFM_SUPABASE_URL = 'https://nbpvamrwzqrgoiwpadwc.supabase.co';
       const SFM_SUPABASE_KEY = 'sb_publishable_GrJ_9z_y903WFMGjoAg82Q_cG3N2_Jx';
       const sfmSb = (window.supabase && window.supabase.createClient)
         ? window.supabase.createClient(SFM_SUPABASE_URL, SFM_SUPABASE_KEY)
         : null;
+
+      // Maps a raw `leads` row (snake_case, as stored by associate-app)
+      // onto the camelCase field names the rest of this file already
+      // reads (l.legalStatus, l.loanAmount, ...), without dropping any
+      // of the original snake_case keys other code paths also rely on.
+      function mapSupabaseLead(row) {
+        return Object.assign({}, row, {
+          loanType: row.loan_type,
+          loanAmount: row.loan_amount,
+          assignedBA: row.assigned_ba,
+          assignedLegal: row.assigned_legal,
+          assignedTechnical: row.assigned_technical,
+          legalStatus: row.legal_status,
+          technicalStatus: row.technical_status,
+          legalSubmitted: row.legal_submitted,
+          technicalSubmitted: row.technical_submitted,
+          adminStatus: row.admin_status,
+          creditLoanAmount: row.credit_loan_amount,
+          createdAt: row.created_at
+        });
+      }
+
+      function teamTable(type) {
+        return type === 'legal' ? 'legal_team' : type === 'technical' ? 'technical_team' :
+          type === 'credit' ? 'credit_team' : 'business_associates';
+      }
+
+      // Pulls leads, users, and every team roster live from Supabase and
+      // replaces the in-memory state used throughout the panel. Called
+      // right after login and again after every mutation, so the UI is
+      // always showing what's actually in the database.
+      async function loadAllFromSupabase() {
+        if (!sfmSb) { toast('⚠️ Not connected to Supabase — showing cached data'); return; }
+        try {
+          const [leadsRes, usersRes, legalRes, techRes, creditRes, baRes] = await Promise.all([
+            sfmSb.from('leads').select('*').order('created_at', { ascending: false }),
+            sfmSb.from('users').select('*'),
+            sfmSb.from('legal_team').select('*'),
+            sfmSb.from('technical_team').select('*'),
+            sfmSb.from('credit_team').select('*'),
+            sfmSb.from('business_associates').select('*')
+          ]);
+
+          if (leadsRes.error) throw leadsRes.error;
+          leads = (leadsRes.data || []).map(mapSupabaseLead);
+
+          if (usersRes.error) throw usersRes.error;
+          const freshUsers = {};
+          (usersRes.data || []).forEach(function(u) { freshUsers[u.email] = u; });
+          users = freshUsers;
+
+          if (legalRes.error) throw legalRes.error;
+          legalTeam = legalRes.data || [];
+
+          if (techRes.error) throw techRes.error;
+          technicalTeam = techRes.data || [];
+
+          if (creditRes.error) throw creditRes.error;
+          creditTeam = creditRes.data || [];
+
+          if (baRes.error) throw baRes.error;
+          // business_associates stores the name column as "NAME" (quoted,
+          // uppercase) — normalize it to .name for the shared renderTeam().
+          businessAssociates = (baRes.data || []).map(function(m) {
+            return Object.assign({}, m, { name: m.name || m.NAME });
+          });
+
+          persistAll(); // keep localStorage warm as an offline fallback only
+        } catch (err) {
+          console.error('Supabase live load failed', err);
+          toast('⚠️ Could not load live data from Supabase — showing last cached copy');
+        }
+      }
 
       async function fetchEvaluationReport(appNo, reportType) {
         if (!sfmSb) { toast('⚠️ Could not connect to Supabase'); return null; }
@@ -2662,6 +2800,10 @@
       // ================================================================
       // INIT
       // ================================================================
+      // NOTE: login itself now goes through Supabase Auth (doLogin), not
+      // this local users object — this seed only keeps a harmless
+      // pre-login placeholder/offline cache entry so the panel never
+      // shows a completely empty state before the first live load.
       if (!users['sachinkale241981@gmail.com']) {
         users['sachinkale241981@gmail.com'] = { password: 'Password@123', role: 'owner', name: 'Owner',
           mobile: '8779023084', status: 'active' };
