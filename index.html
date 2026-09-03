@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- Chart.js for graphical presentation -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">
@@ -2333,188 +2334,140 @@
         return prefix + '-' + year + '-' + String(docCounters[key]).padStart(4, '0');
       }
 
+      // ================================================================
+      // BRANDED PDF THEME — copied 1:1 from the Sanction Quotation
+      // generator (quotation-panel.html / quotation-generator.js) so
+      // every business document — Legal, Technical, Credit and the
+      // Sanction Letter — shares the exact same Diamond Noir letterhead:
+      // gold "SOLITAIRE FINZ MART" wordmark, italic tagline + address
+      // line, gold double-rule, right-aligned Date/Ref/File block, a
+      // bold underlined Subject line, beige-header bordered tables for
+      // every data section, gold section rules, a numbered conditions
+      // list, the "For Solitaire Finz Mart / Sachin Shivaji Kale /
+      // Managing Partner" signature block, and a thin gold-topped
+      // italic footer. Rendered via html2pdf.js (same pipeline as the
+      // Quotation) instead of jsPDF canvas drawing.
+      // ================================================================
+      // Reuses the existing global escapeHtml() helper (defined above under
+      // HELPERS) — no redeclaration here.
+      function brandedTableHTML(rows) {
+        const body = (rows || []).map(function (r) {
+          return '<tr style="page-break-inside:avoid;">' +
+            '<td style="background:#F5EFDD; border:1px solid #ddd; padding:6px 10px; width:38%; font-weight:bold;">' + escapeHtml(r[0]) + '</td>' +
+            '<td style="border:1px solid #ddd; padding:6px 10px;">' + escapeHtml(r[1]) + '</td>' +
+            '</tr>';
+        }).join('');
+        return '<table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:16px;">' + body + '</table>';
+      }
+
+      function brandedSectionHTML(title, innerHtml) {
+        if (!innerHtml) return '';
+        return '<div style="font-family:Cambria, Georgia, serif; font-weight:bold; color:#C9A227; font-size:15px; margin-bottom:4px;">' +
+          escapeHtml(title) + '</div>' +
+          '<div style="border-bottom:1px solid #C4A672; margin-bottom:10px;"></div>' +
+          innerHtml;
+      }
+
+      function buildBrandedHTML(cfg) {
+        let html = '<div style="font-family: Georgia, \'Times New Roman\', serif; color:#1A1A1A; padding: 28px 34px; max-width: 780px;">';
+
+        // Header — identical wordmark/tagline/address block to the Quotation
+        html += '<div style="text-align:center; margin-bottom:6px;">' +
+          '<div style="font-family: Cambria, Georgia, serif; font-size:26px; font-weight:bold; letter-spacing:2px; color:#C9A227;">SOLITAIRE FINZ MART</div>' +
+          '<div style="font-size:11px; color:#555; font-style:italic; margin-top:2px;">LOAN DSA &nbsp;\u2022&nbsp; FINANCIAL ADVISORY &nbsp;\u2022&nbsp; ESTABLISHED SINCE 15+ YEARS</div>' +
+          '<div style="font-size:11px; color:#555; margin-top:2px;">Bhiwandi, Thane, Maharashtra, India &nbsp;|&nbsp; [Contact Number] &nbsp;|&nbsp; [Email Address]</div>' +
+          '</div>' +
+          '<div style="border-bottom:2px solid #C9A227; margin: 8px 0 18px;"></div>';
+
+        // Right-aligned Date / Ref No. / File No. — same position as the
+        // Quotation's Date / Ref. No. block, with File No. added below.
+        html += '<div style="text-align:right; font-size:12px; margin-bottom:4px;"><b>Date:</b> ' + escapeHtml(cfg.dated) + '</div>' +
+          '<div style="text-align:right; font-size:12px; margin-bottom:4px;"><b>Ref. No.:</b> ' + escapeHtml(cfg.refNo) + '</div>' +
+          '<div style="text-align:right; font-size:12px; margin-bottom:16px;"><b>File No.:</b> ' + escapeHtml(cfg.fileNo) + '</div>';
+
+        // Subject line — bold + underlined, same treatment as the
+        // Quotation's "Subject:" line.
+        html += '<div style="font-size:12px; margin-bottom:12px;"><b>Subject: <u>' + escapeHtml(cfg.title) + '</u></b></div>';
+
+        if (cfg.toLine) {
+          html += '<div style="font-size:12px; line-height:1.6; margin-bottom:12px;">' + escapeHtml(cfg.toLine) + '</div>';
+        }
+        if (cfg.introParagraph) {
+          html += '<div style="font-size:12px; line-height:1.6; margin-bottom:14px;">' + escapeHtml(cfg.introParagraph) + '</div>';
+        }
+
+        // Optional block BEFORE the main table (Sanction Letter uses this
+        // for Applicant & Co-applicant details) — same beige/bordered table.
+        if (cfg.preSection) {
+          html += brandedSectionHTML(cfg.preSection.title, brandedTableHTML(cfg.preSection.rows));
+        }
+
+        // Main data table (Verification / Valuation / Appraisal / Sanction
+        // Terms) — identical styling to the Quotation's sanction-summary table.
+        html += brandedSectionHTML(cfg.tableTitle, brandedTableHTML(cfg.tableRows && cfg.tableRows.length ? cfg.tableRows : []));
+
+        // Optional block AFTER the main table (Sanction Letter's Collateral).
+        if (cfg.extraSection) {
+          html += brandedSectionHTML(cfg.extraSection.title, brandedTableHTML(cfg.extraSection.rows));
+        }
+
+        // Conditions — numbered list, same gold section header + <ol> style
+        // as the Quotation's "General Terms & Conditions".
+        if (cfg.conditions && cfg.conditions.length) {
+          const items = cfg.conditions.map(function (c) {
+            return '<li style="page-break-inside:avoid;">' + escapeHtml(c) + '</li>';
+          }).join('');
+          html += brandedSectionHTML(cfg.conditionsTitle, '<ol style="font-size:12px; line-height:1.6; padding-left:18px; margin-bottom:16px;">' + items + '</ol>');
+        }
+
+        // Status / opinion / recommendation line.
+        if (cfg.statusLine) {
+          html += brandedSectionHTML(cfg.statusTitle, '<div style="font-size:12px; line-height:1.6; margin-bottom:16px;">' + escapeHtml(cfg.statusLine) + '</div>');
+        }
+
+        // Closing + signature block — identical to the Quotation's
+        // "For Solitaire Finz Mart, / Sachin Shivaji Kale / Managing Partner".
+        html += '<div style="font-size:12px; margin-bottom:40px;">For Solitaire Finz Mart,</div>' +
+          '<div style="font-size:13px; font-weight:bold;">Sachin Shivaji Kale</div>' +
+          '<div style="font-size:12px; font-style:italic; color:#555;">Managing Partner</div>' +
+          '<div style="font-size:12px; margin-bottom:20px;">Solitaire Finz Mart</div>';
+
+        // Footer — gold top rule + small italic note, same as the Quotation.
+        html += '<div style="border-top:1px solid #C9A227; margin-top:24px; padding-top:6px; text-align:center; font-size:10px; font-style:italic; color:#555;">' +
+          escapeHtml(cfg.footerNote || 'Solitaire Finz Mart | Home Loans \u00b7 Business Loans \u00b7 LAP \u00b7 Balance Transfer \u00b7 Construction & Project Finance') +
+          '</div>';
+
+        html += '</div>';
+        return html;
+      }
+
+      // Same call signature as before — buildBrandedPDF(cfg).save(filename) —
+      // so none of the four generate...PDF() functions below need to change.
       function buildBrandedPDF(cfg) {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const marginX = 52;
-        const rightX = pageWidth - marginX;
-        const bottomLimit = pageHeight - 56;
-        let y = 54;
-        let pageNum = 1;
-
-        // Keeps content from ever running into (or past) the footer area.
-        // If the next block won't fit, starts a new page with a slim
-        // continuation header so the branding carries across pages.
-        function checkPageBreak(neededSpace) {
-          if (y + neededSpace <= bottomLimit) return;
-          doc.addPage();
-          pageNum += 1;
-          y = 50;
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(8.5);
-          doc.setTextColor(150, 118, 30);
-          doc.text('SOLITAIRE FINZ MART — continued', marginX, y);
-          doc.text(cfg.refNo, rightX, y, { align: 'right' });
-          y += 8;
-          doc.setDrawColor(222, 200, 150);
-          doc.setLineWidth(0.7);
-          doc.line(marginX, y, rightX, y);
-          y += 18;
-        }
-
-        // Diamond mark drawn as vector shapes (not a font glyph) — avoids
-        // the encoding corruption standard PDF fonts have with Unicode
-        // symbols like U+25C6, which previously also threw off text-width
-        // calculations and pushed the header text past the page edge.
-        const diamondCx = pageWidth / 2;
-        const diamondCy = y - 4;
-        const dS = 6;
-        doc.setFillColor(180, 140, 40);
-        doc.triangle(diamondCx - dS, diamondCy, diamondCx, diamondCy - dS, diamondCx + dS, diamondCy, 'F');
-        doc.triangle(diamondCx - dS, diamondCy, diamondCx, diamondCy + dS, diamondCx + dS, diamondCy, 'F');
-        y += 15;
-
-        doc.setFont('times', 'bold');
-        doc.setFontSize(16);
-        doc.setTextColor(20, 20, 20);
-        doc.text('SOLITAIRE FINZ MART', pageWidth / 2, y, { align: 'center' });
-        y += 13;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8.5);
-        doc.setTextColor(130, 118, 84);
-        doc.text('Loan origination & distribution', pageWidth / 2, y, { align: 'center' });
-        y += 14;
-        doc.setDrawColor(201, 162, 39);
-        doc.setLineWidth(1.1);
-        doc.line(marginX, y, rightX, y);
-        y += 17;
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9.5);
-        doc.setTextColor(90, 80, 60);
-        doc.text(cfg.refNo, marginX, y);
-        doc.text('Dated ' + cfg.dated, rightX, y, { align: 'right' });
-        y += 13;
-        doc.text('File ' + cfg.fileNo, marginX, y);
-        y += 20;
-
-        doc.setFont('times', 'bold');
-        doc.setFontSize(13);
-        doc.setTextColor(20, 20, 20);
-        doc.text(cfg.title, pageWidth / 2, y, { align: 'center' });
-        y += 19;
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10.5);
-        doc.setTextColor(30, 30, 30);
-        const toLines = doc.splitTextToSize(cfg.toLine, rightX - marginX);
-        checkPageBreak(toLines.length * 13 + 10);
-        doc.text(toLines, marginX, y);
-        y += toLines.length * 13 + 10;
-
-        const introLines = doc.splitTextToSize(cfg.introParagraph, rightX - marginX);
-        checkPageBreak(introLines.length * 13 + 14);
-        doc.text(introLines, marginX, y);
-        y += introLines.length * 13 + 14;
-
-        function sectionHeader(label) {
-          checkPageBreak(34);
-          doc.setFont('times', 'bold');
-          doc.setFontSize(10.5);
-          doc.setTextColor(150, 118, 30);
-          doc.text(label, marginX, y);
-          y += 6;
-          doc.setDrawColor(222, 200, 150);
-          doc.setLineWidth(0.7);
-          doc.line(marginX, y, rightX, y);
-          y += 14;
-        }
-
-        const labelW = 160;
-
-        // Renders a titled label/value row block (used for the terms
-        // table plus the applicant and collateral blocks around it).
-        function renderRowSection(title, rows) {
-          if (!rows || !rows.length) return;
-          sectionHeader(title);
-          doc.setFontSize(10);
-          rows.forEach(function (row) {
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(60, 55, 40);
-            const valLines = doc.splitTextToSize(String(row[1]), rightX - marginX - labelW);
-            const rowH = Math.max(14, valLines.length * 13);
-            checkPageBreak(rowH);
-            doc.text(row[0], marginX, y);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(25, 25, 25);
-            doc.text(valLines, marginX + labelW, y);
-            y += rowH;
-          });
-          y += 8;
-        }
-
-        // Optional block(s) BEFORE the terms table — used by the Sanction
-        // Letter to carry applicant / co-applicant name, current address
-        // and contact details ahead of SANCTION TERMS.
-        if (cfg.preSection) renderRowSection(cfg.preSection.title, cfg.preSection.rows);
-
-        renderRowSection(cfg.tableTitle, cfg.tableRows);
-
-        // Optional block between the terms table and the conditions —
-        // used by the Sanction Letter to carry the collateral (property)
-        // address.
-        if (cfg.extraSection) renderRowSection(cfg.extraSection.title, cfg.extraSection.rows);
-
-        sectionHeader(cfg.conditionsTitle);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.setTextColor(30, 30, 30);
-        cfg.conditions.forEach(function (c, i) {
-          const lines = doc.splitTextToSize((i + 1) + '. ' + c, rightX - marginX);
-          const blockH = lines.length * 13 + 4;
-          checkPageBreak(blockH);
-          doc.text(lines, marginX, y);
-          y += blockH;
-        });
-        y += 6;
-
-        sectionHeader(cfg.statusTitle);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.setTextColor(30, 30, 30);
-        const statusLines = doc.splitTextToSize(cfg.statusLine, rightX - marginX);
-        checkPageBreak(statusLines.length * 13);
-        doc.text(statusLines, marginX, y);
-        y += statusLines.length * 13;
-
-        // Footer sits directly below the content (with a small closing
-        // gap) instead of being pinned to the bottom of the page — this
-        // is what was leaving large blank gaps on shorter reports.
-        y += 22;
-        const footerLines = doc.splitTextToSize(cfg.footerNote, rightX - marginX);
-        checkPageBreak(footerLines.length * 10 + 14);
-        doc.setDrawColor(225, 225, 225);
-        doc.setLineWidth(0.6);
-        doc.line(marginX, y, rightX, y);
-        y += 12;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7.3);
-        doc.setTextColor(140, 130, 108);
-        doc.text(footerLines, marginX, y);
-
-        // Page numbers, stamped once total page count is known.
-        const totalPages = doc.internal.getNumberOfPages();
-        for (let p = 1; p <= totalPages; p++) {
-          doc.setPage(p);
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(7.5);
-          doc.setTextColor(150, 150, 150);
-          doc.text('Page ' + p + ' of ' + totalPages, rightX, pageHeight - 20, { align: 'right' });
-        }
-
-        return doc;
+        return {
+          save: function (filename) {
+            const html = buildBrandedHTML(cfg);
+            const container = document.createElement('div');
+            container.innerHTML = html;
+            document.body.appendChild(container);
+            return html2pdf()
+              .set({
+                margin: 0,
+                filename: filename,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+                pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', 'li'] },
+              })
+              .from(container)
+              .save()
+              .then(function () { document.body.removeChild(container); })
+              .catch(function (err) {
+                document.body.removeChild(container);
+                console.error(err);
+              });
+          },
+        };
       }
 
       function logReportHistory(entry) {
