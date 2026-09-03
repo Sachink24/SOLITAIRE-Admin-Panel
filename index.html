@@ -882,6 +882,7 @@
       <button class="active" data-tab="dashboard"><i class="fas fa-chart-pie"></i> Dashboard</button>
       <button data-tab="leads"><i class="fas fa-users"></i> Leads</button>
       <button data-tab="team"><i class="fas fa-users-cog"></i> Team</button>
+      <button data-tab="banks-products"><i class="fas fa-building-columns"></i> Banks / Products</button>
       <button data-tab="documents"><i class="fas fa-file-invoice"></i> Docs</button>
       <button data-tab="sanctions"><i class="fas fa-stamp"></i> Sanctions</button>
     </div>
@@ -989,6 +990,29 @@
         <div class="card">
           <div class="card-title"><i class="fas fa-briefcase"></i> Business Associates</div>
           <div id="baTeamList"></div>
+        </div>
+      </div>
+
+      <!-- BANKS / PRODUCTS -->
+      <div class="tab-pane" id="tab-banks-products">
+        <div class="card">
+          <div class="card-title"><i class="fas fa-building-columns"></i> Manage Banks</div>
+          <div class="form-row">
+            <div class="form-group"><label>Bank / Lender Name</label><input type="text" id="newBankName" placeholder="e.g. HDFC Bank"></div>
+            <div class="form-group"><label>Code (optional)</label><input type="text" id="newBankCode" placeholder="e.g. HDFC"></div>
+          </div>
+          <button class="btn-sm gold" id="addBankBtn" style="width:100%;padding:10px;"><i class="fas fa-plus"></i> Add Bank</button>
+          <div id="bankList" style="margin-top:12px;"></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="fas fa-box-open"></i> Manage Loan Products</div>
+          <div class="form-row">
+            <div class="form-group"><label>Product Name</label><input type="text" id="newProductName" placeholder="e.g. Home Loan"></div>
+            <div class="form-group"><label>Category (optional)</label><input type="text" id="newProductCategory" placeholder="e.g. Mortgage"></div>
+          </div>
+          <div class="form-group"><label>Description (optional)</label><input type="text" id="newProductDescription" placeholder="Short product description"></div>
+          <button class="btn-sm gold" id="addProductBtn" style="width:100%;padding:10px;"><i class="fas fa-plus"></i> Add Product</button>
+          <div id="productList" style="margin-top:12px;"></div>
         </div>
       </div>
 
@@ -1106,6 +1130,8 @@
       let technicalTeam = load(KEYS.technicalTeam, []);
       let creditTeam = load(KEYS.creditTeam, []);
       let businessAssociates = load(KEYS.businessAssociates, []);
+      let banks = load('solitaire_banks', []);
+      let loanProducts = load('solitaire_loanProducts', []);
       let feedEntries = load(KEYS.feedEntries, []);
       let docHistory = load(KEYS.docHistory, []);
       let resetTokens = load(KEYS.resetTokens, {});
@@ -1728,12 +1754,72 @@
       }
 
       // ================================================================
+      // BANK / PRODUCT MANAGEMENT
+      // ================================================================
+      function renderBankProductManagement() {
+        const bankEl = document.getElementById('bankList');
+        const productEl = document.getElementById('productList');
+        if (!bankEl || !productEl) return;
+        bankEl.innerHTML = banks.length ? banks.map(function(b) {
+          return '<div class="member-item"><div class="info"><span class="name">' + escapeHtml(b.name) + '</span><span class="email">' + escapeHtml(b.code || '') + '</span></div><div class="actions"><span class="badge ' + (b.active === false ? 'badge-terminated' : 'badge-active') + '">' + (b.active === false ? 'Inactive' : 'Active') + '</span><button class="btn-sm danger" onclick="removeBank(\'' + b.id + '\')"><i class="fas fa-trash"></i> Remove</button></div></div>';
+        }).join('') : '<div style="color:#6a5f48;font-size:12px;padding:8px 0;">No banks added yet.</div>';
+        productEl.innerHTML = loanProducts.length ? loanProducts.map(function(p) {
+          return '<div class="member-item"><div class="info"><span class="name">' + escapeHtml(p.name) + '</span><span class="email">' + escapeHtml(p.category || '') + (p.description ? ' · ' + escapeHtml(p.description) : '') + '</span></div><div class="actions"><span class="badge ' + (p.active === false ? 'badge-terminated' : 'badge-active') + '">' + (p.active === false ? 'Inactive' : 'Active') + '</span><button class="btn-sm danger" onclick="removeProduct(\'' + p.id + '\')"><i class="fas fa-trash"></i> Remove</button></div></div>';
+        }).join('') : '<div style="color:#6a5f48;font-size:12px;padding:8px 0;">No products added yet.</div>';
+      }
+
+      window.addBank = async function() {
+        const name = document.getElementById('newBankName').value.trim();
+        const code = document.getElementById('newBankCode').value.trim();
+        if (!name) { toast('⚠️ Enter a bank name'); return; }
+        if (!sfmSb) { toast('⚠️ Could not connect to Supabase'); return; }
+        const { error } = await sfmSb.from('banks').insert({ name: name, code: code || null });
+        if (error) { toast('⚠️ ' + error.message); return; }
+        document.getElementById('newBankName').value = '';
+        document.getElementById('newBankCode').value = '';
+        await loadAllFromSupabase(); renderAll(); toast('✅ Bank added');
+      };
+
+      window.removeBank = async function(id) {
+        const bank = banks.find(function(b) { return b.id === id; });
+        if (!bank || !confirm('Remove ' + bank.name + '?')) return;
+        if (!sfmSb) return;
+        const { error } = await sfmSb.from('banks').delete().eq('id', id);
+        if (error) { toast('⚠️ ' + error.message); return; }
+        await loadAllFromSupabase(); renderAll(); toast('✅ Bank removed');
+      };
+
+      window.addLoanProduct = async function() {
+        const name = document.getElementById('newProductName').value.trim();
+        const category = document.getElementById('newProductCategory').value.trim();
+        const description = document.getElementById('newProductDescription').value.trim();
+        if (!name) { toast('⚠️ Enter a product name'); return; }
+        if (!sfmSb) { toast('⚠️ Could not connect to Supabase'); return; }
+        const { error } = await sfmSb.from('loan_products').insert({ name: name, category: category || null, description: description || null });
+        if (error) { toast('⚠️ ' + error.message); return; }
+        document.getElementById('newProductName').value = '';
+        document.getElementById('newProductCategory').value = '';
+        document.getElementById('newProductDescription').value = '';
+        await loadAllFromSupabase(); renderAll(); toast('✅ Product added');
+      };
+
+      window.removeProduct = async function(id) {
+        const product = loanProducts.find(function(p) { return p.id === id; });
+        if (!product || !confirm('Remove ' + product.name + '?')) return;
+        if (!sfmSb) return;
+        const { error } = await sfmSb.from('loan_products').delete().eq('id', id);
+        if (error) { toast('⚠️ ' + error.message); return; }
+        await loadAllFromSupabase(); renderAll(); toast('✅ Product removed');
+      };
+
+      // ================================================================
       // RENDER ALL
       // ================================================================
       function renderAll() {
         renderDashboard();
         renderLeads();
         renderTeam();
+        renderBankProductManagement();
         renderDocs();
       }
 
@@ -2050,13 +2136,15 @@
       async function loadAllFromSupabase() {
         if (!sfmSb) { toast('⚠️ Not connected to Supabase — showing cached data'); return; }
         try {
-          const [leadsRes, usersRes, legalRes, techRes, creditRes, baRes] = await Promise.all([
+          const [leadsRes, usersRes, legalRes, techRes, creditRes, baRes, banksRes, productsRes] = await Promise.all([
             sfmSb.from('leads').select('*').order('created_at', { ascending: false }),
             sfmSb.from('users').select('*'),
             sfmSb.from('legal_team').select('*'),
             sfmSb.from('technical_team').select('*'),
             sfmSb.from('credit_team').select('*'),
-            sfmSb.from('business_associates').select('*')
+            sfmSb.from('business_associates').select('*'),
+            sfmSb.from('banks').select('*').order('name'),
+            sfmSb.from('loan_products').select('*').order('name')
           ]);
 
           if (leadsRes.error) throw leadsRes.error;
@@ -2077,6 +2165,10 @@
           creditTeam = creditRes.data || [];
 
           if (baRes.error) throw baRes.error;
+          if (banksRes.error) throw banksRes.error;
+          if (productsRes.error) throw productsRes.error;
+          banks = banksRes.data || [];
+          loanProducts = productsRes.data || [];
           // business_associates stores the name column as "NAME" (quoted,
           // uppercase) — normalize it to .name for the shared renderTeam().
           businessAssociates = (baRes.data || []).map(function(m) {
@@ -2796,6 +2888,9 @@
       // ================================================================
       document.getElementById('filterStatus').addEventListener('change', renderLeads);
       document.getElementById('searchLead').addEventListener('input', renderLeads);
+
+      document.getElementById('addBankBtn').addEventListener('click', addBank);
+      document.getElementById('addProductBtn').addEventListener('click', addLoanProduct);
 
       // ================================================================
       // INIT
