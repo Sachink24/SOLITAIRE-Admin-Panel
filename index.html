@@ -2454,7 +2454,7 @@
             document.body.appendChild(container);
             return html2pdf()
               .set({
-                margin: 0,
+                margin: [20, 0, 20, 0],
                 filename: filename,
                 image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { scale: 2 },
