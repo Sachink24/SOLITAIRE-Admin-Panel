@@ -886,6 +886,9 @@
       <button data-tab="banks-products"><i class="fas fa-building-columns"></i> Banks / Products</button>
       <button data-tab="documents"><i class="fas fa-file-invoice"></i> Docs</button>
       <button data-tab="sanctions"><i class="fas fa-stamp"></i> Sanctions</button>
+      <button data-tab="wa-conversations"><i class="fab fa-whatsapp"></i> WhatsApp</button>
+      <button data-tab="ai-risk"><i class="fas fa-shield-alt"></i> AI Risk</button>
+      <button data-tab="ai-docs"><i class="fas fa-robot"></i> AI Docs</button>
     </div>
 
     <!-- CONTENT -->
@@ -1078,7 +1081,82 @@
           </div>
         </div>
       </div>
-    </div>
+    
+      <div class="tab-pane" id="tab-wa-conversations">
+        <div class="card">
+          <div class="card-title"><i class="fab fa-whatsapp" style="color:#25D366"></i> WhatsApp Conversations</div>
+          <div style="font-size:11px;color:#6a5f48;margin-bottom:8px;">Every customer who has messaged the bot.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
+            <button class="btn-sm gold" onclick="loadWaConversations()"><i class="fas fa-sync"></i> Refresh</button>
+            <input id="waConvSearch" type="text" placeholder="Search..." style="flex:1;min-width:160px;padding:5px 10px;border:1px solid #c5b77a;border-radius:4px;font-size:12px;" oninput="filterWaConversations(this.value)">
+            <select id="waConvState" style="padding:5px 8px;border:1px solid #c5b77a;border-radius:4px;font-size:12px;" onchange="filterWaConversations(document.getElementById('waConvSearch').value)">
+              <option value="">All states</option><option value="MAIN_MENU">Main Menu</option>
+              <option value="ASKING_QUESTION">In Progress</option><option value="COMPLETED">Completed</option>
+              <option value="AWAITING_DOCUMENTS">Awaiting Docs</option><option value="AI_QUERY">AI Query</option>
+            </select>
+            <label style="font-size:12px;display:flex;align-items:center;gap:4px;">
+              <input type="checkbox" id="waConvAgentOnly" onchange="filterWaConversations(document.getElementById('waConvSearch').value)"> Agent only
+            </label>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Number</th><th>Name</th><th>Existing?</th><th>State</th><th>Product</th><th>Lead</th><th>Agent?</th><th>Last Msg</th><th>Summary</th><th>View</th></tr></thead>
+            <tbody id="waConvTableBody"><tr><td colspan="10" style="text-align:center;color:#6a5f48;">Click Refresh.</td></tr></tbody>
+          </table></div>
+        </div>
+        <div id="waConvDrawer" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.52);" onclick="if(event.target===this)closeWaConvDrawer()">
+          <div style="position:absolute;right:0;top:0;bottom:0;width:min(600px,100vw);background:#1a1710;color:#ede7d8;display:flex;flex-direction:column;box-shadow:-6px 0 32px rgba(0,0,0,.5);">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #3a3420;">
+              <span style="font-weight:700;font-size:15px;" id="waDrawerTitle">Conversation</span>
+              <button onclick="closeWaConvDrawer()" style="background:none;border:none;color:#c5b77a;font-size:20px;cursor:pointer;">&times;</button>
+            </div>
+            <div id="waConvSummaryBox" style="display:none;margin:10px 16px;padding:10px 12px;background:#2a2215;border-radius:6px;border:1px solid #3a3420;font-size:12px;"></div>
+            <div id="waDrawerMessages" style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:8px;"></div>
+            <div style="padding:12px 16px;border-top:1px solid #3a3420;display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn-sm gold" id="waDrawerSumBtn" onclick="summariseWaConversation()"><i class="fas fa-robot"></i> AI Summary</button>
+              <a id="waDrawerWaLink" href="#" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:5px;padding:5px 12px;background:#25D366;color:#fff;border-radius:4px;font-size:12px;text-decoration:none;"><i class="fab fa-whatsapp"></i> Open Chat</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-pane" id="tab-ai-risk">
+        <div class="card">
+          <div class="card-title"><i class="fas fa-shield-alt" style="color:#e05252"></i> AI Risk Alerts</div>
+          <div style="font-size:11px;color:#6a5f48;margin-bottom:8px;">Advisory only. No lead is ever auto-rejected.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
+            <button class="btn-sm gold" onclick="loadAiRiskAlerts()"><i class="fas fa-sync"></i> Refresh</button>
+            <select id="aiRiskSeverity" style="padding:5px 8px;border:1px solid #c5b77a;border-radius:4px;font-size:12px;" onchange="loadAiRiskAlerts()">
+              <option value="">All severities</option><option value="CRITICAL">Critical</option><option value="HIGH">High</option><option value="MEDIUM">Medium</option><option value="LOW">Low</option>
+            </select>
+            <select id="aiRiskStatus" style="padding:5px 8px;border:1px solid #c5b77a;border-radius:4px;font-size:12px;" onchange="loadAiRiskAlerts()">
+              <option value="OPEN">Open</option><option value="">All</option><option value="UNDER_REVIEW">Under Review</option><option value="RESOLVED">Resolved</option><option value="FALSE_POSITIVE">False Positive</option>
+            </select>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Lead</th><th>Severity</th><th>Type</th><th>Title</th><th>Description</th><th>Action</th><th>Status</th><th>Raised</th></tr></thead>
+            <tbody id="aiRiskTableBody"><tr><td colspan="8" style="text-align:center;color:#6a5f48;">Click Refresh.</td></tr></tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <div class="tab-pane" id="tab-ai-docs">
+        <div class="card">
+          <div class="card-title"><i class="fas fa-robot" style="color:#c5b77a"></i> AI Document Insights</div>
+          <div style="font-size:11px;color:#6a5f48;margin-bottom:8px;">Every document analysed by Gemini.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
+            <button class="btn-sm gold" onclick="loadAiDocInsights()"><i class="fas fa-sync"></i> Refresh</button>
+            <select id="aiDocStatus" style="padding:5px 8px;border:1px solid #c5b77a;border-radius:4px;font-size:12px;" onchange="loadAiDocInsights()">
+              <option value="">All</option><option value="REVIEW_REQUIRED">Review Required</option><option value="COMPLETED">Completed</option><option value="FAILED">Failed</option><option value="PROCESSING">Processing</option>
+            </select>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Lead</th><th>Doc Type</th><th>Status</th><th>Confidence</th><th>Expiry</th><th>Risk Flags</th><th>AI Summary</th><th>Fields</th><th>Analysed</th></tr></thead>
+            <tbody id="aiDocTableBody"><tr><td colspan="9" style="text-align:center;color:#6a5f48;">Click Refresh.</td></tr></tbody>
+          </table></div>
+        </div>
+      </div>
+
+</div>
 
     <!-- MODAL -->
     <div class="modal-overlay" id="modalOverlay">
@@ -2873,7 +2951,177 @@
       console.log('📋 Leads:', leads.length);
 
     })();
-  </script>
+  
+    // ================================================================
+    // WhatsApp / AI Risk / AI Docs tabs
+    // ================================================================
+    var waConvAllRows=[], waDrawerConvId=null;
+
+    async function loadWaConversations(){
+      var tbody=document.getElementById('waConvTableBody');
+      if(!sfmSb){tbody.innerHTML='<tr><td colspan="10" style="color:#e05252;text-align:center;">Not connected</td></tr>';return;}
+      tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:#6a5f48;">Loading...</td></tr>';
+      var res=await sfmSb.from('whatsapp_conversations').select('id,wa_number,display_name,is_existing_customer,state,product_key,lead_id,handed_to_agent,ai_summary,last_message_at').order('last_message_at',{ascending:false}).limit(300);
+      if(res.error){tbody.innerHTML='<tr><td colspan="10" style="color:#e05252;text-align:center;">'+escapeHtml(res.error.message)+'</td></tr>';return;}
+      waConvAllRows=res.data||[];
+      filterWaConversations(document.getElementById('waConvSearch').value);
+    }
+
+    function filterWaConversations(q){
+      var stF=document.getElementById('waConvState').value;
+      var agO=document.getElementById('waConvAgentOnly').checked;
+      var term=(q||'').toLowerCase();
+      var rows=waConvAllRows.filter(function(r){
+        if(stF&&r.state!==stF)return false;
+        if(agO&&!r.handed_to_agent)return false;
+        if(term&&![r.wa_number,r.display_name,r.state,r.product_key,String(r.lead_id||'')].join(' ').toLowerCase().includes(term))return false;
+        return true;
+      });
+      var tbody=document.getElementById('waConvTableBody');
+      if(!rows.length){tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:#6a5f48;">No matches.</td></tr>';return;}
+      var sc={ASKING_QUESTION:'#c5b77a',COMPLETED:'#5aad6f',AWAITING_DOCUMENTS:'#e07a1f',AI_QUERY:'#7a9fe0',MAIN_MENU:'#888'};
+      tbody.innerHTML=rows.map(function(r){
+        var ts=r.last_message_at?new Date(r.last_message_at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'--';
+        var leadLink=r.lead_id?'<a href="#" onclick="switchToLeadTab('+r.lead_id+');return false;" style="color:#c5b77a;">#'+r.lead_id+'</a>':'--';
+        return '<tr>'+
+          '<td><a href="https://wa.me/'+escapeHtml(r.wa_number)+'" target="_blank" style="color:#c5b77a;">'+escapeHtml(r.wa_number)+'</a></td>'+
+          '<td>'+escapeHtml(r.display_name||'--')+'</td>'+
+          '<td style="text-align:center;">'+(r.is_existing_customer?'Yes':'--')+'</td>'+
+          '<td><span style="padding:2px 7px;border-radius:9px;font-size:10px;background:'+(sc[r.state]||'#888')+';color:#fff;">'+escapeHtml(r.state)+'</span></td>'+
+          '<td>'+escapeHtml(r.product_key||'--')+'</td>'+
+          '<td>'+leadLink+'</td>'+
+          '<td style="text-align:center;">'+(r.handed_to_agent?'<span style="padding:2px 6px;border-radius:9px;font-size:10px;background:#e05252;color:#fff;">Agent</span>':'--')+'</td>'+
+          '<td style="font-size:11px;">'+ts+'</td>'+
+          '<td style="text-align:center;">'+(r.ai_summary?'[S]':'')+'</td>'+
+          '<td><button class="btn-sm" onclick="openWaConvDrawer(''+escapeHtml(r.id)+'',''+escapeHtml(r.wa_number)+'')">View</button></td>'+
+          '</tr>';
+      }).join('');
+    }
+
+    function switchToLeadTab(leadId){
+      var btn=document.querySelector('[data-tab="leads"]');
+      if(btn)btn.click();
+      setTimeout(function(){var s=document.getElementById('searchInput');if(s){s.value=String(leadId);s.dispatchEvent(new Event('input'));}},300);
+    }
+
+    async function openWaConvDrawer(convId,waNumber){
+      waDrawerConvId=convId;
+      document.getElementById('waConvDrawer').style.display='';
+      document.getElementById('waDrawerTitle').textContent=waNumber;
+      document.getElementById('waDrawerWaLink').href='https://wa.me/'+waNumber;
+      var msgDiv=document.getElementById('waDrawerMessages');
+      var sumBox=document.getElementById('waConvSummaryBox');
+      sumBox.style.display='none';
+      msgDiv.innerHTML='<div style="color:#6a5f48;font-size:13px;">Loading...</div>';
+      var conv=waConvAllRows.find(function(r){return r.id===convId;});
+      if(conv&&conv.ai_summary){sumBox.innerHTML='<b style="color:#c5b77a;font-size:11px;">AI Summary</b><br>'+escapeHtml(conv.ai_summary);sumBox.style.display='';}
+      var res=await sfmSb.from('whatsapp_messages').select('direction,message_type,body,created_at').eq('conversation_id',convId).order('created_at',{ascending:true}).limit(400);
+      if(res.error){msgDiv.innerHTML='<div style="color:#e05252;">'+escapeHtml(res.error.message)+'</div>';return;}
+      if(!res.data||!res.data.length){msgDiv.innerHTML='<div style="color:#6a5f48;font-size:13px;">No messages yet.</div>';return;}
+      msgDiv.innerHTML=res.data.map(function(m){
+        var inb=m.direction==='inbound';
+        var ts=m.created_at?new Date(m.created_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):'';
+        return '<div style="display:flex;justify-content:'+(inb?'flex-start':'flex-end')+';">'+
+          '<div style="max-width:82%;background:'+(inb?'#2a2215':'#1a3320')+';border-radius:8px;padding:8px 11px;font-size:12px;">'+
+          '<div style="font-size:10px;color:#8a7a5a;margin-bottom:3px;">'+(inb?'Customer':'Bot')+' - '+ts+'</div>'+
+          '<div style="white-space:pre-wrap;">'+escapeHtml(m.body||'[media]')+'</div></div></div>';
+      }).join('');
+      msgDiv.scrollTop=msgDiv.scrollHeight;
+    }
+
+    function closeWaConvDrawer(){document.getElementById('waConvDrawer').style.display='none';waDrawerConvId=null;}
+
+    async function summariseWaConversation(){
+      if(!waDrawerConvId)return;
+      var btn=document.getElementById('waDrawerSumBtn');
+      btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Summarising...';
+      try{
+        var sess=await sfmSb.auth.getSession();
+        if(!sess.data.session){toast('Not signed in');return;}
+        var res=await fetch('https://nbpvamrwzqrgoiwpadwc.supabase.co/functions/v1/whatsapp-summarize',{
+          method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+sess.data.session.access_token},
+          body:JSON.stringify({conversation_id:waDrawerConvId})});
+        var json=await res.json();
+        if(!res.ok||json.error){toast('Failed: '+(json.error||res.status));return;}
+        var box=document.getElementById('waConvSummaryBox');
+        box.innerHTML='<b style="color:#c5b77a;font-size:11px;">AI Summary</b><br>'+escapeHtml(json.summary);
+        box.style.display='';
+        var row=waConvAllRows.find(function(r){return r.id===waDrawerConvId;});
+        if(row)row.ai_summary=json.summary;
+        toast('Summary saved');
+      }catch(e){toast('Error: '+e.message);}
+      finally{btn.disabled=false;btn.innerHTML='<i class="fas fa-robot"></i> AI Summary';}
+    }
+
+    async function loadAiRiskAlerts(){
+      var tbody=document.getElementById('aiRiskTableBody');
+      if(!sfmSb){tbody.innerHTML='<tr><td colspan="8" style="color:#e05252;text-align:center;">Not connected</td></tr>';return;}
+      tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:#6a5f48;">Loading...</td></tr>';
+      var sev=document.getElementById('aiRiskSeverity').value;
+      var sta=document.getElementById('aiRiskStatus').value;
+      var q=sfmSb.from('ai_risk_alerts').select('*').order('created_at',{ascending:false}).limit(300);
+      if(sev)q=q.eq('severity',sev);
+      if(sta)q=q.eq('status',sta);
+      var res=await q;
+      if(res.error){tbody.innerHTML='<tr><td colspan="8" style="color:#e05252;text-align:center;">'+escapeHtml(res.error.message)+'</td></tr>';return;}
+      if(!res.data||!res.data.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:#6a5f48;">No alerts.</td></tr>';return;}
+      var svc={CRITICAL:'#7a1a1a',HIGH:'#e05252',MEDIUM:'#e07a1f',LOW:'#6a5f48'};
+      tbody.innerHTML=res.data.map(function(r){
+        var c=svc[r.severity]||'#888';
+        var ts=r.created_at?new Date(r.created_at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'--';
+        var opts=['OPEN','UNDER_REVIEW','RESOLVED','FALSE_POSITIVE'].map(function(v){return '<option value="'+v+'"'+(r.status===v?' selected':'')+'>'+v.replace('_',' ')+'</option>';}).join('');
+        return '<tr>'+
+          '<td><a href="#" onclick="switchToLeadTab('+r.lead_id+');return false;" style="color:#c5b77a;">#'+r.lead_id+'</a></td>'+
+          '<td><span style="padding:2px 8px;border-radius:9px;background:'+c+';color:#fff;font-size:11px;">'+escapeHtml(r.severity)+'</span></td>'+
+          '<td style="font-size:11px;">'+escapeHtml(r.risk_type)+'</td>'+
+          '<td style="font-weight:600;font-size:12px;">'+escapeHtml(r.title)+'</td>'+
+          '<td style="font-size:11px;max-width:200px;">'+escapeHtml(r.description||'--')+'</td>'+
+          '<td style="font-size:11px;color:#c5b77a;">'+escapeHtml(r.recommended_action||'--')+'</td>'+
+          '<td><select onchange="updateRiskAlertStatus(''+r.id+'',this.value)" style="font-size:11px;padding:3px 6px;border:1px solid #c5b77a;border-radius:4px;background:#1a1710;color:#ede7d8;">'+opts+'</select></td>'+
+          '<td style="font-size:11px;">'+ts+'</td></tr>';
+      }).join('');
+    }
+
+    async function updateRiskAlertStatus(alertId,newStatus){
+      var patch={status:newStatus};
+      if(newStatus==='RESOLVED'||newStatus==='FALSE_POSITIVE')patch.resolved_at=new Date().toISOString();
+      var res=await sfmSb.from('ai_risk_alerts').update(patch).eq('id',alertId);
+      res.error?toast('Update failed: '+res.error.message):toast('Status updated');
+    }
+
+    async function loadAiDocInsights(){
+      var tbody=document.getElementById('aiDocTableBody');
+      if(!sfmSb){tbody.innerHTML='<tr><td colspan="9" style="color:#e05252;text-align:center;">Not connected</td></tr>';return;}
+      tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:#6a5f48;">Loading...</td></tr>';
+      var sta=document.getElementById('aiDocStatus').value;
+      var q=sfmSb.from('ai_document_insights').select('id,lead_id,document_type,verification_status,classification_confidence,expiry_status,risk_flags,ai_summary,extracted_data,created_at').order('created_at',{ascending:false}).limit(300);
+      if(sta)q=q.eq('verification_status',sta);
+      var res=await q;
+      if(res.error){tbody.innerHTML='<tr><td colspan="9" style="color:#e05252;text-align:center;">'+escapeHtml(res.error.message)+'</td></tr>';return;}
+      if(!res.data||!res.data.length){tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:#6a5f48;">No insights yet.</td></tr>';return;}
+      var stC={COMPLETED:'#5aad6f',REVIEW_REQUIRED:'#e07a1f',FAILED:'#e05252',PROCESSING:'#6a9fe0',PENDING:'#888'};
+      var exC={valid:'#5aad6f',expired:'#e05252',expiring_soon:'#e07a1f'};
+      tbody.innerHTML=res.data.map(function(r){
+        var sc=stC[r.verification_status]||'#888';
+        var ec=exC[r.expiry_status]||'#888';
+        var conf=r.classification_confidence!=null?Math.round(r.classification_confidence*100)+'%':'--';
+        var flags=Array.isArray(r.risk_flags)&&r.risk_flags.length?r.risk_flags.map(function(f){return '<span style="display:block;font-size:10px;color:#e05252;">'+escapeHtml(f)+'</span>';}).join(''):'<span style="color:#5aad6f;font-size:11px;">None</span>';
+        var ext=r.extracted_data&&Object.keys(r.extracted_data).length?'<details style="font-size:10px;"><summary>Fields</summary><pre style="white-space:pre-wrap;max-width:240px;overflow:auto;">'+escapeHtml(JSON.stringify(r.extracted_data,null,2))+'</pre></details>':'--';
+        var ts=r.created_at?new Date(r.created_at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'--';
+        return '<tr>'+
+          '<td><a href="#" onclick="switchToLeadTab('+r.lead_id+');return false;" style="color:#c5b77a;">#'+r.lead_id+'</a></td>'+
+          '<td style="font-weight:600;">'+escapeHtml(r.document_type||'--')+'</td>'+
+          '<td><span style="padding:2px 7px;border-radius:9px;font-size:10px;background:'+sc+';color:#fff;">'+escapeHtml(r.verification_status)+'</span></td>'+
+          '<td style="text-align:center;">'+conf+'</td>'+
+          '<td><span style="padding:2px 7px;border-radius:9px;font-size:10px;background:'+ec+';color:#fff;">'+escapeHtml(r.expiry_status||'--')+'</span></td>'+
+          '<td>'+flags+'</td>'+
+          '<td style="font-size:11px;max-width:180px;">'+escapeHtml(r.ai_summary||'--')+'</td>'+
+          '<td>'+ext+'</td>'+
+          '<td style="font-size:11px;">'+ts+'</td></tr>';
+      }).join('');
+    }
+
+    </script>
 
 </body>
 </html>
