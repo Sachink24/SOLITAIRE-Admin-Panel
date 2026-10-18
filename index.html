@@ -2993,7 +2993,7 @@
           '<td style="text-align:center;">'+(r.handed_to_agent?'<span style="padding:2px 6px;border-radius:9px;font-size:10px;background:#e05252;color:#fff;">Agent</span>':'--')+'</td>'+
           '<td style="font-size:11px;">'+ts+'</td>'+
           '<td style="text-align:center;">'+(r.ai_summary?'[S]':'')+'</td>'+
-          '<td><button class="btn-sm" onclick="openWaConvDrawer(''+escapeHtml(r.id)+'',''+escapeHtml(r.wa_number)+'')">View</button></td>'+
+          '<td><button class="btn-sm" onclick="openWaConvDrawer(&quot;'+escapeHtml(r.id)+'&quot;,&quot;'+escapeHtml(r.wa_number)+'&quot;)" >View</button></td>'+
           '</tr>';
       }).join('');
     }
@@ -3077,7 +3077,7 @@
           '<td style="font-weight:600;font-size:12px;">'+escapeHtml(r.title)+'</td>'+
           '<td style="font-size:11px;max-width:200px;">'+escapeHtml(r.description||'--')+'</td>'+
           '<td style="font-size:11px;color:#c5b77a;">'+escapeHtml(r.recommended_action||'--')+'</td>'+
-          '<td><select onchange="updateRiskAlertStatus(''+r.id+'',this.value)" style="font-size:11px;padding:3px 6px;border:1px solid #c5b77a;border-radius:4px;background:#1a1710;color:#ede7d8;">'+opts+'</select></td>'+
+          '<td><select onchange="updateRiskAlertStatus(&quot;'+r.id+'&quot;,this.value)" style="font-size:11px;padding:3px 6px;border:1px solid #c5b77a;border-radius:4px;background:#1a1710;color:#ede7d8;">'+opts+'</select></td>'+
           '<td style="font-size:11px;">'+ts+'</td></tr>';
       }).join('');
     }
