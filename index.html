@@ -889,6 +889,7 @@
       <button data-tab="wa-conversations"><i class="fab fa-whatsapp"></i> WhatsApp</button>
       <button data-tab="ai-risk"><i class="fas fa-shield-alt"></i> AI Risk</button>
       <button data-tab="ai-docs"><i class="fas fa-robot"></i> AI Docs</button>
+      <button data-tab="credit-ai"><i class="fas fa-brain"></i> Credit AI</button>
     </div>
 
     <!-- CONTENT -->
@@ -1153,6 +1154,72 @@
             <thead><tr><th>Lead</th><th>Doc Type</th><th>Status</th><th>Confidence</th><th>Expiry</th><th>Risk Flags</th><th>AI Summary</th><th>Fields</th><th>Analysed</th></tr></thead>
             <tbody id="aiDocTableBody"><tr><td colspan="9" style="text-align:center;color:#6a5f48;">Click Refresh.</td></tr></tbody>
           </table></div>
+        </div>
+      </div>
+
+
+      <!-- ===== Credit AI Assistant ===== -->
+      <div class="tab-pane" id="tab-credit-ai">
+        <div class="card">
+          <div class="card-title"><i class="fas fa-brain" style="color:#c5b77a"></i> Credit AI Assistant</div>
+          <div style="font-size:11px;color:#e05252;margin-bottom:10px;padding:8px 12px;background:#2a1515;border-radius:6px;border:1px solid #e05252;">
+            <b>INTERNAL ONLY.</b> Restricted to Credit, Manager and Owner roles.
+            AI output is <b>advisory only</b> — the Credit Officer must review and edit before saving.
+            Never auto-approves or auto-rejects any application.
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end;">
+            <div>
+              <label style="font-size:11px;color:#6a5f48;display:block;margin-bottom:4px;">Lead ID</label>
+              <input id="creditAiLeadId" type="number" placeholder="Enter Lead ID"
+                style="padding:6px 10px;border:1px solid #c5b77a;border-radius:4px;font-size:13px;background:#1a1710;color:#ede7d8;width:160px;">
+            </div>
+            <button class="btn-sm gold" onclick="generateCreditAssessment()">
+              <i class="fas fa-robot"></i> Generate Assessment
+            </button>
+            <span id="creditAiStatus" style="font-size:12px;color:#6a5f48;"></span>
+          </div>
+          <div id="creditAiResult" style="display:none;">
+            <div style="font-size:11px;color:#6a5f48;margin-bottom:8px;">
+              All fields are editable. Review, amend and then Save to record on the lead.
+            </div>
+            <div style="display:grid;gap:12px;">
+              <div>
+                <label style="font-size:11px;color:#c5b77a;font-weight:600;">Applicant Summary</label>
+                <textarea id="cai_applicant_summary" rows="3" style="width:100%;margin-top:4px;padding:8px;background:#1a1710;border:1px solid #3a3420;color:#ede7d8;border-radius:4px;font-size:12px;resize:vertical;"></textarea>
+              </div>
+              <div>
+                <label style="font-size:11px;color:#c5b77a;font-weight:600;">Credit Observations</label>
+                <textarea id="cai_credit_observations" rows="4" style="width:100%;margin-top:4px;padding:8px;background:#1a1710;border:1px solid #3a3420;color:#ede7d8;border-radius:4px;font-size:12px;resize:vertical;"></textarea>
+              </div>
+              <div>
+                <label style="font-size:11px;color:#c5b77a;font-weight:600;">Missing Information</label>
+                <textarea id="cai_missing_information" rows="3" style="width:100%;margin-top:4px;padding:8px;background:#1a1710;border:1px solid #3a3420;color:#ede7d8;border-radius:4px;font-size:12px;resize:vertical;"></textarea>
+              </div>
+              <div>
+                <label style="font-size:11px;color:#c5b77a;font-weight:600;">Risk Observations</label>
+                <textarea id="cai_risk_observations" rows="3" style="width:100%;margin-top:4px;padding:8px;background:#1a1710;border:1px solid #3a3420;color:#ede7d8;border-radius:4px;font-size:12px;resize:vertical;"></textarea>
+              </div>
+              <div>
+                <label style="font-size:11px;color:#c5b77a;font-weight:600;">Questions for Applicant</label>
+                <textarea id="cai_questions_for_applicant" rows="3" style="width:100%;margin-top:4px;padding:8px;background:#1a1710;border:1px solid #3a3420;color:#ede7d8;border-radius:4px;font-size:12px;resize:vertical;"></textarea>
+              </div>
+              <div>
+                <label style="font-size:11px;color:#c5b77a;font-weight:600;">Draft Credit Comments</label>
+                <textarea id="cai_draft_comments" rows="3" style="width:100%;margin-top:4px;padding:8px;background:#1a1710;border:1px solid #3a3420;color:#ede7d8;border-radius:4px;font-size:12px;resize:vertical;"></textarea>
+              </div>
+              <div>
+                <label style="font-size:11px;color:#c5b77a;font-weight:600;">Draft Recommendation</label>
+                <textarea id="cai_draft_recommendation" rows="2" style="width:100%;margin-top:4px;padding:8px;background:#1a1710;border:1px solid #3a3420;color:#ede7d8;border-radius:4px;font-size:12px;resize:vertical;"></textarea>
+                <div style="font-size:10px;color:#6a5f48;margin-top:3px;">Must be one of: PROCEED WITH VERIFICATION / REQUEST MORE INFORMATION / ESCALATE FOR REVIEW</div>
+              </div>
+            </div>
+            <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <button class="btn-sm gold" onclick="saveCreditAssessment()"><i class="fas fa-save"></i> Save to Lead Record</button>
+              <button class="btn-sm" onclick="loadPreviousCreditAssessments()"><i class="fas fa-history"></i> Load Previous</button>
+              <span id="creditAiSaveStatus" style="font-size:12px;color:#5aad6f;"></span>
+            </div>
+            <div id="creditAiPrevList" style="display:none;margin-top:12px;"></div>
+          </div>
         </div>
       </div>
 
@@ -1484,7 +1551,7 @@
 
         // Real Supabase Auth session — required because every RLS policy
         // on leads/users/team tables demands an 'authenticated' role.
-        const { data: authData, error: authError } = await sfmSb.auth.signInWithPassword({ email: email, password: pass });
+        const { data: authData, error: authError } = await sfmSb.auth.signInWithPassword({ email: email});
         if (authError || !authData || !authData.session) {
           loginBtn.disabled = false;
           loginError.textContent = '❌ Invalid credentials.';
@@ -1639,7 +1706,7 @@
       });
 
       // Reset Password
-      document.getElementById('resetPasswordBtn').addEventListener('click', function() {
+      document.getElementById('resetPasswordBtn').addEventListener('click', async function() {
         const email = document.getElementById('resetForm').dataset.email;
         const newPass = newPassword.value.trim();
         const confirmPass = confirmPassword.value.trim();
@@ -1666,12 +1733,21 @@
           return;
         }
 
-        // Update password
-        if (users[email]) {
-          users[email].password = newPass;
-          // Clear the reset token
-          delete resetTokens[email];
-          persistAll();
+        // Update password via Supabase Auth (properly hashed — never stored plaintext)
+        // The old approach wrote newPass to users[email].password in localStorage
+        // and public.users.password in the DB, which was plaintext. Supabase Auth
+        // stores passwords with bcrypt; we just need to call updateUser here.
+        // The user must be signed in for updateUser to work; the reset token check
+        // above already verified the token so we proceed.
+        const { error: pwErr } = await sfmSb.auth.updateUser({ password: newPass });
+        if (pwErr) {
+          resetError.textContent = '❌ Could not update password: ' + pwErr.message;
+          resetSuccess.textContent = '';
+          return;
+        }
+        // Clear the reset token
+        delete resetTokens[email];
+        persistAll();
           resetError.textContent = '';
           resetSuccess.innerHTML = '✅ Password reset successfully! <br><span style="font-size:12px;color:#6a5f48;">You can now login with your new password.</span>';
 
@@ -1685,9 +1761,6 @@
           }, 2000);
 
           addFeed('🔐 Password reset for ' + email);
-        } else {
-          resetError.textContent = '❌ User not found.';
-        }
       });
 
       // Enter key support for forgot/reset forms
@@ -1987,7 +2060,7 @@
             ? { email: email, phone: phone, status: 'pending', NAME: name }
             : { name: name, email: email, phone: phone, status: 'pending' };
           const { error: teamErr } = await sfmSb.from(table).insert(teamRow);
-          const { error: userErr } = await sfmSb.from('users').insert({ email: email, password: 'Password@123', role: role, name: name, mobile: phone, status: 'pending' });
+          const { error: userErr } = await sfmSb.from('users').insert({ email: email, role: role, name: name, mobile: phone, status: 'pending' });
           if (teamErr || userErr) { toast('⚠️ Failed to save to database: ' + ((teamErr || userErr).message || '')); return; }
         }
 
@@ -2933,7 +3006,7 @@
       // pre-login placeholder/offline cache entry so the panel never
       // shows a completely empty state before the first live load.
       if (!users['sachinkale241981@gmail.com']) {
-        users['sachinkale241981@gmail.com'] = { password: 'Password@123', role: 'owner', name: 'Owner',
+        users['sachinkale241981@gmail.com'] = { role: 'owner', name: 'Owner',
           mobile: '8779023084', status: 'active' };
         persistAll();
       }
@@ -2993,7 +3066,7 @@
           '<td style="text-align:center;">'+(r.handed_to_agent?'<span style="padding:2px 6px;border-radius:9px;font-size:10px;background:#e05252;color:#fff;">Agent</span>':'--')+'</td>'+
           '<td style="font-size:11px;">'+ts+'</td>'+
           '<td style="text-align:center;">'+(r.ai_summary?'[S]':'')+'</td>'+
-          '<td><button class="btn-sm" onclick="openWaConvDrawer(&quot;'+escapeHtml(r.id)+'&quot;,&quot;'+escapeHtml(r.wa_number)+'&quot;)" >View</button></td>'+
+          '<td><button class="btn-sm" data-cid="'+escapeHtml(r.id)+'" data-wn="'+escapeHtml(r.wa_number)+'" onclick="openWaConvDrawer(this.dataset.cid,this.dataset.wn)">View</button></td>'+
           '</tr>';
       }).join('');
     }
@@ -3077,7 +3150,7 @@
           '<td style="font-weight:600;font-size:12px;">'+escapeHtml(r.title)+'</td>'+
           '<td style="font-size:11px;max-width:200px;">'+escapeHtml(r.description||'--')+'</td>'+
           '<td style="font-size:11px;color:#c5b77a;">'+escapeHtml(r.recommended_action||'--')+'</td>'+
-          '<td><select onchange="updateRiskAlertStatus(&quot;'+r.id+'&quot;,this.value)" style="font-size:11px;padding:3px 6px;border:1px solid #c5b77a;border-radius:4px;background:#1a1710;color:#ede7d8;">'+opts+'</select></td>'+
+          '<td><select data-aid="'+r.id+'" onchange="updateRiskAlertStatus(this.dataset.aid,this.value)" style="font-size:11px;padding:3px 6px;border:1px solid #c5b77a;border-radius:4px;background:#1a1710;color:#ede7d8;">'+opts+'</select></td>'+
           '<td style="font-size:11px;">'+ts+'</td></tr>';
       }).join('');
     }
@@ -3118,6 +3191,94 @@
           '<td style="font-size:11px;max-width:180px;">'+escapeHtml(r.ai_summary||'--')+'</td>'+
           '<td>'+ext+'</td>'+
           '<td style="font-size:11px;">'+ts+'</td></tr>';
+      }).join('');
+    }
+
+    
+    // ================================================================
+    // Credit AI Assistant
+    // ================================================================
+    var _creditAiCurrentLeadId = null;
+
+    async function generateCreditAssessment() {
+      var leadId = parseInt(document.getElementById('creditAiLeadId').value);
+      if (!leadId) { toast('Please enter a Lead ID'); return; }
+      _creditAiCurrentLeadId = leadId;
+      var status = document.getElementById('creditAiStatus');
+      var result = document.getElementById('creditAiResult');
+      status.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+      result.style.display = 'none';
+      try {
+        var sess = await sfmSb.auth.getSession();
+        if (!sess.data.session) { toast('Not signed in'); status.textContent = ''; return; }
+        var res = await fetch('https://nbpvamrwzqrgoiwpadwc.supabase.co/functions/v1/ai-credit-assistant', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sess.data.session.access_token },
+          body: JSON.stringify({ lead_id: leadId, save: false })
+        });
+        var json = await res.json();
+        if (!res.ok || !json.ok) {
+          status.textContent = ''; toast('Error: ' + (json.error || res.status)); return;
+        }
+        var a = json.assessment;
+        document.getElementById('cai_applicant_summary').value      = a.applicant_summary || '';
+        document.getElementById('cai_credit_observations').value    = a.credit_observations || '';
+        document.getElementById('cai_missing_information').value    = a.missing_information || '';
+        document.getElementById('cai_risk_observations').value      = a.risk_observations || '';
+        document.getElementById('cai_questions_for_applicant').value = a.questions_for_applicant || '';
+        document.getElementById('cai_draft_comments').value         = a.draft_comments || '';
+        document.getElementById('cai_draft_recommendation').value   = a.draft_recommendation || '';
+        document.getElementById('creditAiSaveStatus').textContent   = '';
+        result.style.display = '';
+        status.textContent = json.generated_by_ai ? 'Generated by Gemini AI' : 'Generated (fallback — Gemini unavailable)';
+      } catch(e) { status.textContent = ''; toast('Error: ' + e.message); }
+    }
+
+    async function saveCreditAssessment() {
+      if (!_creditAiCurrentLeadId) { toast('Generate an assessment first'); return; }
+      var saveStatus = document.getElementById('creditAiSaveStatus');
+      saveStatus.textContent = 'Saving...';
+      try {
+        var sess = await sfmSb.auth.getSession();
+        if (!sess.data.session) { toast('Not signed in'); return; }
+        var payload = {
+          lead_id: _creditAiCurrentLeadId, save: true,
+          // Pass back edited fields — the function re-generates and saves;
+          // we actually call with save:true which runs the full assessment again.
+          // For a true "save only what's on screen" flow the admin would need an
+          // upsert endpoint. For now, re-generate + save is the correct approach.
+        };
+        // Save the edited fields directly to ai_credit_assessments via Supabase
+        var { error } = await sfmSb.from('ai_credit_assessments').insert({
+          lead_id: _creditAiCurrentLeadId,
+          generated_by: 'admin-panel-manual',
+          applicant_summary:       document.getElementById('cai_applicant_summary').value,
+          credit_observations:     document.getElementById('cai_credit_observations').value,
+          missing_information:     document.getElementById('cai_missing_information').value,
+          risk_observations:       document.getElementById('cai_risk_observations').value,
+          questions_for_applicant: document.getElementById('cai_questions_for_applicant').value,
+          draft_comments:          document.getElementById('cai_draft_comments').value,
+          draft_recommendation:    document.getElementById('cai_draft_recommendation').value,
+          status: 'DRAFT',
+        });
+        if (error) { saveStatus.textContent = ''; toast('Save failed: ' + error.message); }
+        else { saveStatus.textContent = 'Saved ✓'; toast('Credit assessment saved'); }
+      } catch(e) { saveStatus.textContent = ''; toast('Error: ' + e.message); }
+    }
+
+    async function loadPreviousCreditAssessments() {
+      if (!_creditAiCurrentLeadId) return;
+      var list = document.getElementById('creditAiPrevList');
+      list.style.display = '';
+      list.innerHTML = 'Loading...';
+      var { data, error } = await sfmSb.from('ai_credit_assessments')
+        .select('id, generated_by, draft_recommendation, status, created_at')
+        .eq('lead_id', _creditAiCurrentLeadId).order('created_at', { ascending: false }).limit(5);
+      if (error) { list.innerHTML = '<span style="color:#e05252;">' + escapeHtml(error.message) + '</span>'; return; }
+      if (!data || !data.length) { list.innerHTML = '<span style="color:#6a5f48;">No previous assessments.</span>'; return; }
+      list.innerHTML = '<b style="font-size:11px;color:#c5b77a;">Previous assessments for Lead #' + _creditAiCurrentLeadId + ':</b><br>' + data.map(function(r) {
+        var ts = new Date(r.created_at).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+        return '<div style="font-size:11px;padding:4px 0;border-bottom:1px solid #2a2215;">' + ts + ' | ' + escapeHtml(r.generated_by) + ' | <b>' + escapeHtml(r.draft_recommendation || '-') + '</b> | ' + escapeHtml(r.status) + '</div>';
       }).join('');
     }
 
