@@ -1551,10 +1551,15 @@
 
         // Real Supabase Auth session — required because every RLS policy
         // on leads/users/team tables demands an 'authenticated' role.
-        const { data: authData, error: authError } = await sfmSb.auth.signInWithPassword({ email: email});
+        const { data: authData, error: authError } = await sfmSb.auth.signInWithPassword({ email: email, password: pass });
         if (authError || !authData || !authData.session) {
           loginBtn.disabled = false;
-          loginError.textContent = '❌ Invalid credentials.';
+          const msg = String((authError && authError.message) || '');
+          loginError.textContent = /rate limit|too many/i.test(msg)
+            ? '⏳ Too many attempts. Please wait a minute and try again.'
+            : /not confirmed/i.test(msg)
+              ? '❌ This email is not confirmed yet.'
+              : '❌ Incorrect email or password.';
           return;
         }
 
@@ -1662,105 +1667,74 @@
         showLoginForm();
       });
 
-      // Send Reset Link
-      document.getElementById('sendResetBtn').addEventListener('click', function() {
+      // Send Reset Link: Supabase Auth emails a recovery link. Opening it on this page gives a short
+      // recovery session, then the Reset form below sets the new password. (Same account and password
+      // as the Associate app, because both apps use the same Supabase Auth user.)
+      document.getElementById('sendResetBtn').addEventListener('click', async function() {
         const email = forgotEmail.value.trim().toLowerCase();
         if (!email) { forgotError.textContent = '⚠️ Please enter your email address.'; return; }
-
-        const user = users[email];
-        if (!user) {
-          forgotError.textContent = '❌ No account found with this email.';
-          forgotSuccess.textContent = '';
-          return;
-        }
-
-        if (user.role !== 'owner') {
-          forgotError.textContent = '❌ This email is not an owner account.';
-          forgotSuccess.textContent = '';
-          return;
-        }
-
-        // Generate a reset token (simulated)
-        const token = 'reset_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
-        resetTokens[email] = {
-          token: token,
-          expires: Date.now() + 3600000 // 1 hour expiry
-        };
-        persistAll();
-
-        // In a real app, you'd send an email. Here we show the reset link in the UI.
+        if (!sfmSb) { forgotError.textContent = '⚠️ Could not connect to Supabase.'; return; }
+        const btn = this;
+        btn.disabled = true;
         forgotError.textContent = '';
-        forgotSuccess.innerHTML = '✅ Reset link sent! <br><small style="color:#6a5f48;font-size:11px;">(Demo: <a href="#" id="simulatedResetLink" style="color:#c9a84c;">Click here to reset</a>)</small>';
-
-        document.getElementById('simulatedResetLink').addEventListener('click', function(e) {
-          e.preventDefault();
-          // Auto-fill the reset form
-          showResetForm();
-          // Store the email for reset
-          document.getElementById('resetForm').dataset.email = email;
-          toast('🔑 Reset mode activated for ' + email);
-        });
-
-        toast('📧 Reset link generated!');
-        addFeed('🔑 Password reset requested for ' + email);
+        forgotSuccess.textContent = '';
+        const redirectTo = window.location.origin + window.location.pathname;
+        const { error } = await sfmSb.auth.resetPasswordForEmail(email, { redirectTo: redirectTo });
+        btn.disabled = false;
+        if (error) {
+          forgotError.textContent = /rate limit|too many|seconds/i.test(error.message || '')
+            ? '⏳ Please wait a minute before asking for another link.'
+            : '❌ Could not send the reset email: ' + error.message;
+          return;
+        }
+        forgotSuccess.innerHTML = '✅ If this email has an account, a reset link has been sent.<br><small style="color:#6a5f48;font-size:11px;">Open the link in your email on this device to set a new password.</small>';
+        toast('📧 Check your email for the reset link');
       });
 
-      // Reset Password
+      // Reset Password (needs the recovery session from the email link)
       document.getElementById('resetPasswordBtn').addEventListener('click', async function() {
-        const email = document.getElementById('resetForm').dataset.email;
         const newPass = newPassword.value.trim();
         const confirmPass = confirmPassword.value.trim();
-
-        if (!email) { resetError.textContent = '⚠️ Session expired. Please request a new reset link.'; return; }
 
         if (!newPass || newPass.length < 6) {
           resetError.textContent = '⚠️ Password must be at least 6 characters.';
           resetSuccess.textContent = '';
           return;
         }
-
         if (newPass !== confirmPass) {
           resetError.textContent = '⚠️ Passwords do not match.';
           resetSuccess.textContent = '';
           return;
         }
+        if (!sfmSb) { resetError.textContent = '⚠️ Could not connect to Supabase.'; return; }
 
-        // Check if token is valid
-        const tokenData = resetTokens[email];
-        if (!tokenData || tokenData.expires < Date.now()) {
-          resetError.textContent = '❌ Reset token expired. Please request a new one.';
+        const { data: sess } = await sfmSb.auth.getSession();
+        if (!sess || !sess.session) {
+          resetError.textContent = '❌ Please open the reset link from your email first, then set the new password here.';
           resetSuccess.textContent = '';
           return;
         }
+        const email = String(sess.session.user.email || '').toLowerCase();
 
-        // Update password via Supabase Auth (properly hashed — never stored plaintext)
-        // The old approach wrote newPass to users[email].password in localStorage
-        // and public.users.password in the DB, which was plaintext. Supabase Auth
-        // stores passwords with bcrypt; we just need to call updateUser here.
-        // The user must be signed in for updateUser to work; the reset token check
-        // above already verified the token so we proceed.
         const { error: pwErr } = await sfmSb.auth.updateUser({ password: newPass });
         if (pwErr) {
           resetError.textContent = '❌ Could not update password: ' + pwErr.message;
           resetSuccess.textContent = '';
           return;
         }
-        // Clear the reset token
-        delete resetTokens[email];
-        persistAll();
-          resetError.textContent = '';
-          resetSuccess.innerHTML = '✅ Password reset successfully! <br><span style="font-size:12px;color:#6a5f48;">You can now login with your new password.</span>';
+        resetError.textContent = '';
+        resetSuccess.innerHTML = '✅ Password reset successfully! <br><span style="font-size:12px;color:#6a5f48;">Signing you in with the new password…</span>';
+        addFeed('🔐 Password reset for ' + email);
 
-          // Auto-login after 2 seconds
-          setTimeout(function() {
-            adminEmail.value = email;
-            adminPassword.value = newPass;
-            showLoginForm();
-            toast('🔐 Password updated! Please login.');
-            doLogin();
-          }, 2000);
-
-          addFeed('🔐 Password reset for ' + email);
+        // Sign in fresh with the new password (also checks the account is the owner)
+        setTimeout(async function() {
+          await sfmSb.auth.signOut();
+          adminEmail.value = email;
+          adminPassword.value = newPass;
+          showLoginForm();
+          toast('🔐 Password updated!');
+          doLogin();
+        }, 1500);
       });
 
       // Enter key support for forgot/reset forms
@@ -2254,6 +2228,18 @@
       const sfmSb = (window.supabase && window.supabase.createClient)
         ? window.supabase.createClient(SFM_SUPABASE_URL, SFM_SUPABASE_KEY)
         : null;
+
+      // The email link from "Forgot Password" opens this page with a recovery session: show the Reset form.
+      // (Registered here, after sfmSb exists; the handlers it calls are defined earlier in the script.)
+      if (sfmSb) {
+        sfmSb.auth.onAuthStateChange(function(event) {
+          if (event === 'PASSWORD_RECOVERY') {
+            loginOverlay.classList.remove('hidden');
+            showResetForm();
+            toast('🔑 Enter your new password');
+          }
+        });
+      }
 
       // Maps a raw `leads` row (snake_case, as stored by associate-app)
       // onto the camelCase field names the rest of this file already
