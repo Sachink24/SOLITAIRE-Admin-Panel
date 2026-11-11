@@ -825,6 +825,133 @@
     .back-to-login i {
       margin-right: 4px;
     }
+
+    /* =====================================================================
+       REDESIGN — Diamond Noir theme (matches the Associate app)
+       ===================================================================== */
+    #app { height: min(780px, calc(100vh - 32px)); height: min(780px, calc(100dvh - 32px)); }
+    @media (max-width: 440px) { #app { height: 100vh; height: 100dvh; } }
+
+    .app-header {
+      position: relative; border-bottom: none;
+      background: radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.16), transparent 62%), linear-gradient(180deg, #1a1a2a 0%, #14141e 100%);
+    }
+    .app-header::after {
+      content: ''; position: absolute; left: 8%; right: 8%; bottom: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, #c9a84c, transparent); box-shadow: 0 0 10px rgba(201,168,76,0.6);
+    }
+    .app-header h1 { font-size: 19px; letter-spacing: 0.6px; text-shadow: 0 0 20px rgba(255,215,0,0.15); }
+    .app-header h1 i { filter: drop-shadow(0 0 6px rgba(255,215,0,0.3)); }
+
+    .tabs { background: linear-gradient(180deg, #14141f 0%, #0d0d16 100%); box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
+    .tabs button { padding: 13px 12px; }
+    .tabs button.active {
+      background: linear-gradient(180deg, rgba(201,168,76,0.2), rgba(201,168,76,0.04));
+      text-shadow: 0 0 12px rgba(201,168,76,0.5);
+    }
+
+    .card {
+      background: linear-gradient(160deg, #202030 0%, #181825 100%);
+      border: 1px solid rgba(201,168,76,0.14);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,0,0.05);
+    }
+    .card:hover { border-color: rgba(201,168,76,0.28); }
+    .card-title { padding-bottom: 10px; margin-bottom: 12px; border-bottom: 1px solid rgba(201,168,76,0.12); }
+    .card-title i {
+      width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 50%; background: rgba(201,168,76,0.12); font-size: 13px;
+    }
+    .stat-box {
+      background: linear-gradient(160deg, #181826 0%, #11111b 100%);
+      border: 1px solid rgba(201,168,76,0.14); box-shadow: inset 0 1px 0 rgba(255,215,0,0.05);
+    }
+    .stat-box .num {
+      background: linear-gradient(180deg, #f6e3a1 0%, #c9a84c 100%);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: #f0d78a;
+    }
+    .stat-highlight { border: 1px solid rgba(201,168,76,0.4); box-shadow: 0 10px 28px rgba(0,0,0,0.45), 0 0 24px rgba(201,168,76,0.12); }
+    table tbody tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+    table tbody tr:hover td { background: rgba(201,168,76,0.07); }
+    .btn-sm.gold { background: linear-gradient(135deg, #e6c566, #c9a84c 55%, #a8832f); box-shadow: 0 4px 14px rgba(201,168,76,0.25); }
+    .btn-sm:active { transform: scale(0.96); }
+    .btn-sm.ghost { background: transparent; color: #c9a84c; border: 1px solid rgba(201,168,76,0.35); }
+
+    /* =====================================================================
+       POST-SANCTION
+       ===================================================================== */
+    .ps-empty { text-align: center; color: #6a5f48; padding: 16px; font-size: 13px; }
+    .ps-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+    .ps-kpi {
+      background: linear-gradient(160deg, #202030, #181825); border: 1px solid rgba(201,168,76,0.18);
+      border-radius: 14px; padding: 12px 6px; text-align: center; box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+    }
+    .ps-kpi i { color: #c9a84c; font-size: 13px; opacity: 0.9; }
+    .ps-kpi .v {
+      font-size: 17px; font-weight: 700; margin-top: 5px;
+      background: linear-gradient(180deg, #f6e3a1, #c9a84c); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .ps-kpi .l { font-size: 9.5px; color: #8a7f66; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 3px; }
+    .ps-row { display: flex; justify-content: space-between; font-size: 11px; color: #a89b7a; }
+    .ps-row b { color: #e6c566; }
+    .ps-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.08); margin: 6px 0 10px; overflow: hidden; }
+    .ps-bar i { display: block; height: 100%; background: linear-gradient(90deg, #c9a84c, #4fb286); border-radius: 3px; transition: width 0.3s; }
+    .ps-stagebar { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #c8bca8; margin: 6px 0; }
+    .ps-stagebar .n { width: 120px; flex-shrink: 0; }
+    .ps-stagebar .t { flex: 1; height: 10px; border-radius: 5px; background: rgba(255,255,255,0.06); overflow: hidden; }
+    .ps-stagebar .t i { display: block; height: 100%; border-radius: 5px; }
+    .ps-stagebar b { width: 22px; text-align: right; color: #f0e6d0; }
+    .ps-link { margin-left: auto; font-size: 10px; color: #8a7f66; font-weight: 400; }
+    .ps-snap { cursor: pointer; }
+    .ps-snapgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; margin-bottom: 8px; }
+    .ps-snapgrid b { display: block; font-size: 17px; color: #f0e6d0; }
+    .ps-snapgrid span { font-size: 9.5px; color: #8a7f66; text-transform: uppercase; letter-spacing: 0.6px; }
+
+    .ps-tools { display: flex; gap: 8px; margin-bottom: 8px; }
+    .ps-tools input { flex: 1; min-width: 0; padding: 9px 12px; font-size: 12px; color: #f0e6d0; background: #12121c; border: 1px solid rgba(201,168,76,0.25); border-radius: 12px; outline: none; }
+    .ps-tools input:focus { border-color: #c9a84c; box-shadow: 0 0 0 3px rgba(201,168,76,0.18); }
+    .ps-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .ps-chips button { padding: 6px 12px; font-size: 11px; color: #a89b7a; background: rgba(255,255,255,0.03); border: 1px solid rgba(201,168,76,0.18); border-radius: 30px; cursor: pointer; }
+    .ps-chips button.on { color: #14141e; font-weight: 700; background: linear-gradient(135deg, #e6c566, #c9a84c); border-color: #c9a84c; }
+
+    .ps-loan { padding: 12px 14px; margin-bottom: 10px; border-radius: 16px; background: linear-gradient(160deg, #1d1d2c, #151521); border: 1px solid rgba(201,168,76,0.14); box-shadow: 0 6px 18px rgba(0,0,0,0.4); }
+    .ps-loan.open { border-color: rgba(201,168,76,0.45); }
+    .ps-loan-head { display: flex; justify-content: space-between; gap: 10px; cursor: pointer; }
+    .ps-loan-head strong { color: #f0e6d0; font-size: 14px; }
+    .ps-sub { font-size: 10.5px; color: #8a7f66; margin-top: 2px; }
+    .ps-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+    .ps-right b { color: #e6c566; font-size: 14px; }
+    .ps-stage { font-size: 9px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; padding: 3px 9px; border-radius: 30px; border: 1px solid transparent; white-space: nowrap; }
+    .ps-stage.st-sanctioned { background: rgba(201,168,76,0.14); color: #e6c566; border-color: rgba(201,168,76,0.4); }
+    .ps-stage.st-letter-issued { background: rgba(91,143,214,0.14); color: #8ab4d6; border-color: rgba(91,143,214,0.4); }
+    .ps-stage.st-customer-accepted { background: rgba(155,123,209,0.14); color: #c4a8ea; border-color: rgba(155,123,209,0.4); }
+    .ps-stage.st-documentation-done { background: rgba(79,179,191,0.14); color: #7fd3dc; border-color: rgba(79,179,191,0.4); }
+    .ps-stage.st-disbursing { background: rgba(217,140,95,0.14); color: #e8a982; border-color: rgba(217,140,95,0.4); }
+    .ps-stage.st-disbursed { background: rgba(79,178,134,0.16); color: #7fdcb0; border-color: rgba(79,178,134,0.45); }
+    .ps-dots { display: flex; align-items: center; margin: 10px 0 8px; }
+    .ps-dot { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; background: #2a2a3a; color: #8a7f66; border: 1px solid rgba(201,168,76,0.25); flex-shrink: 0; }
+    .ps-dot.on { background: #4fb286; color: #0f1f17; border-color: #4fb286; }
+    .ps-line { flex: 1; height: 2px; background: #2a2a3a; }
+    .ps-line.on { background: #4fb286; }
+    .ps-mini { font-size: 11px; color: #a89b7a; }
+    .ps-mini b { color: #f0e6d0; }
+    .ps-detail { margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(201,168,76,0.2); }
+    .ps-stepline { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 6px; border-radius: 12px; font-size: 12px; color: #c8bca8; background: rgba(255,255,255,0.03); border: 1px solid rgba(201,168,76,0.12); }
+    .ps-stepline .ic { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; background: #2a2a3a; flex-shrink: 0; }
+    .ps-stepline .tx { flex: 1; }
+    .ps-stepline small { display: block; font-size: 10px; color: #8a7f66; margin-top: 1px; }
+    .ps-stepline.done { border-color: rgba(79,178,134,0.45); background: rgba(79,178,134,0.08); color: #d7f0e1; }
+    .ps-stepline.done .ic { background: #4fb286; color: #0f1f17; font-weight: 700; }
+    .ps-stepline.next { border-color: rgba(201,168,76,0.5); }
+    .ps-stepline.wait { opacity: 0.55; }
+    .ps-subtitle { margin: 10px 0 6px; font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: #c9a84c; }
+    .ps-rel { display: flex; align-items: center; gap: 8px; justify-content: space-between; font-size: 11.5px; color: #a89b7a; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .ps-rel b { color: #f0e6d0; margin-left: auto; }
+    .ps-form { margin-top: 10px; padding: 10px; border-radius: 12px; background: rgba(0,0,0,0.25); border: 1px solid rgba(201,168,76,0.2); }
+    .ps-formgrid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 6px; }
+    .ps-formgrid input { width: 100%; padding: 9px; font-size: 12px; color: #f0e6d0; background: #12121c; border: 1px solid rgba(201,168,76,0.25); border-radius: 10px; }
+    .ps-final { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; font-size: 10.5px; color: #a89b7a; cursor: pointer; }
+    .ps-final input { accent-color: #c9a84c; margin-top: 2px; }
+    .card-title .ps-link i { width: auto; height: auto; background: none; font-size: 10px; margin-left: 2px; }
   </style>
 </head>
 <body>
@@ -886,6 +1013,7 @@
       <button data-tab="banks-products"><i class="fas fa-building-columns"></i> Banks / Products</button>
       <button data-tab="documents"><i class="fas fa-file-invoice"></i> Docs</button>
       <button data-tab="sanctions"><i class="fas fa-stamp"></i> Sanctions</button>
+      <button data-tab="post-sanction"><i class="fas fa-hand-holding-usd"></i> Post-Sanction</button>
       <button data-tab="wa-conversations"><i class="fab fa-whatsapp"></i> WhatsApp</button>
       <button data-tab="ai-risk"><i class="fas fa-shield-alt"></i> AI Risk</button>
       <button data-tab="ai-docs"><i class="fas fa-robot"></i> AI Docs</button>
@@ -909,6 +1037,12 @@
           <div class="stat-box"><div class="num" id="statLegal">0</div><div class="label">Legal Approved</div></div>
           <div class="stat-box"><div class="num" id="statTechnical">0</div><div class="label">Technical Approved</div></div>
           <div class="stat-box"><div class="num" id="statCredit">0</div><div class="label">Credit Approved</div></div>
+        </div>
+
+        <!-- Post-sanction snapshot -->
+        <div class="card ps-snap" id="psDashCard" title="Open Post-Sanction">
+          <div class="card-title"><i class="fas fa-hand-holding-usd"></i> Post-sanction snapshot <span class="ps-link">View all <i class="fas fa-chevron-right"></i></span></div>
+          <div id="psDashBody"><div class="ps-empty">Loading…</div></div>
         </div>
 
         <!-- Production Chart -->
@@ -1073,16 +1207,43 @@
                   <th>Processing Fees</th>
                   <th>Insurance</th>
                   <th>Sanction Condition</th>
+                  <th>Disbursed</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody id="sanctionsTableBody">
-                <tr><td colspan="11" style="text-align:center;color:#6a5f48;">Loading...</td></tr>
+                <tr><td colspan="13" style="text-align:center;color:#6a5f48;">Loading...</td></tr>
               </tbody>
             </table>
           </div>
         </div>
       </div>
     
+      <!-- POST-SANCTION -->
+      <div class="tab-pane" id="tab-post-sanction">
+        <div class="ps-kpis" id="psKpis"></div>
+        <div class="card">
+          <div class="card-title"><i class="fas fa-chart-bar"></i> Where each sanctioned case stands</div>
+          <div id="psProgress"></div>
+          <div id="psStages"></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="fas fa-list-check"></i> Sanctioned loans</div>
+          <div style="font-size:11px;color:#6a5f48;margin-bottom:8px;">Tap a loan to see its steps and releases. Steps and disbursements recorded here are the same ones the Associate app shows.</div>
+          <div class="ps-tools">
+            <input type="search" id="psSearch" placeholder="Search name, app no. or bank">
+            <button class="btn-sm gold" id="psRefresh"><i class="fas fa-sync"></i> Refresh</button>
+          </div>
+          <div class="ps-chips" id="psChips">
+            <button class="on" data-f="all">All</button>
+            <button data-f="action">Needs action</button>
+            <button data-f="disbursing">Disbursing</button>
+            <button data-f="done">Disbursed</button>
+          </div>
+          <div id="psList"><div class="ps-empty">Loading…</div></div>
+        </div>
+      </div>
+
       <div class="tab-pane" id="tab-wa-conversations">
         <div class="card">
           <div class="card-title"><i class="fab fa-whatsapp" style="color:#25D366"></i> WhatsApp Conversations</div>
@@ -1580,6 +1741,7 @@
 
         await loadAllFromSupabase();
         renderAll();
+        loadPostSanction();
         addFeed('👑 Owner logged in');
 
         // Keep the panel current without a manual refresh — full
@@ -2314,6 +2476,7 @@
           });
 
           persistAll(); // keep localStorage warm as an offline fallback only
+          loadPostSanction(); // refresh the post-sanction snapshot and tracker
         } catch (err) {
           console.error('Supabase live load failed', err);
           toast('⚠️ Could not load live data from Supabase — showing last cached copy');
@@ -2406,6 +2569,268 @@
         }
       }
 
+
+      // ================================================================
+      // POST-SANCTION — tracker for sanctioned loans (steps + disbursement releases)
+      // Data lives in leads.post_sanction, the same format the Associate app writes:
+      //   { letter:{date,by}, accepted:{date,by}, docs:{date,by},
+      //     disbursements:[{date,amount,by}], disbursementClosed:{date,by} }
+      // ================================================================
+      const PS_STEPS = [
+        { key: 'letter', icon: '📄', label: 'Sanction letter issued' },
+        { key: 'accepted', icon: '✍️', label: 'Customer accepted terms' },
+        { key: 'docs', icon: '📑', label: 'Agreement & documentation done' },
+        { key: 'disbursed', icon: '💸', label: 'Loan disbursed' }
+      ];
+      const PS_STAGES = ['Sanctioned', 'Letter issued', 'Customer accepted', 'Documentation done', 'Disbursing', 'Disbursed'];
+      const PS_STAGE_COLORS = { 'Sanctioned': '#c9a84c', 'Letter issued': '#5b8fd6', 'Customer accepted': '#9b7bd1', 'Documentation done': '#4fb3bf', 'Disbursing': '#d98c5f', 'Disbursed': '#4fb286' };
+      let psRows = [], psFilter = 'all', psSearchText = '', psOpenId = null;
+
+      function psReleases(ps) {
+        if (Array.isArray(ps.disbursements)) return ps.disbursements;
+        if (ps.disbursed && ps.disbursed.amount) return [ps.disbursed];
+        return [];
+      }
+      function psShort(n) {
+        n = Number(n) || 0;
+        if (n >= 1e7) return '₹' + (n / 1e7).toFixed(2).replace(/\.?0+$/, '') + ' Cr';
+        if (n >= 1e5) return '₹' + (n / 1e5).toFixed(1).replace(/\.0$/, '') + ' L';
+        return '₹' + Math.round(n).toLocaleString('en-IN');
+      }
+      function psDate(d) {
+        const dt = new Date(d);
+        return isNaN(dt) ? '' : dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      }
+      function psStageClass(stage) { return 'st-' + String(stage).toLowerCase().replace(/[^a-z]+/g, '-'); }
+      function psCompute(s) {
+        const lead = s.leads || {};
+        const ps = lead.post_sanction || {};
+        const rel = psReleases(ps);
+        const amount = Number(s.sanction_amount) || 0;
+        const total = rel.reduce(function (a, r) { return a + (Number(r.amount) || 0); }, 0);
+        const balance = amount ? Math.max(0, amount - total) : 0;
+        const closed = !!ps.disbursementClosed;
+        const full = rel.length > 0 && (closed || !amount || balance <= 1);
+        const done = { letter: !!ps.letter, accepted: !!ps.accepted, docs: !!ps.docs, disbursed: full };
+        const doneCount = PS_STEPS.filter(function (st) { return done[st.key]; }).length;
+        let stage = 'Sanctioned';
+        if (full) stage = 'Disbursed';
+        else if (rel.length) stage = 'Disbursing';
+        else if (ps.docs) stage = 'Documentation done';
+        else if (ps.accepted) stage = 'Customer accepted';
+        else if (ps.letter) stage = 'Letter issued';
+        return { s: s, lead: lead, ps: ps, rel: rel, amount: amount, total: total, balance: balance, closed: closed, full: full,
+                 done: done, doneCount: doneCount, stage: stage, name: (lead.borrower && lead.borrower.name) || '—' };
+      }
+
+      async function loadPostSanction() {
+        if (!sfmSb) return;
+        const res = await sfmSb.from('sanctions')
+          .select('application_no, lead_id, banker, sanction_amount, tenure_months, roi, emi, sanction_date, created_at, leads(borrower, post_sanction, assigned_ba, loan_type)')
+          .order('created_at', { ascending: false });
+        if (res.error) {
+          const l = document.getElementById('psList');
+          if (l) l.innerHTML = '<div class="ps-empty" style="color:#e05252;">' + escapeHtml(res.error.message) + '</div>';
+          return;
+        }
+        psRows = (res.data || []).map(psCompute);
+        renderPostSanction();
+      }
+
+      function renderPostSanction() {
+        const sum = function (a) { return a.reduce(function (x, y) { return x + y; }, 0); };
+        const rows = psRows;
+        const sanctionValue = sum(rows.map(function (r) { return r.amount; }));
+        const disbursed = sum(rows.map(function (r) { return r.total; }));
+        const balance = sum(rows.filter(function (r) { return !r.closed; }).map(function (r) { return r.balance; }));
+        const fullCount = rows.filter(function (r) { return r.full; }).length;
+        const now = new Date();
+        let thisMonth = 0;
+        rows.forEach(function (r) { r.rel.forEach(function (x) { const d = new Date(x.date); if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) thisMonth += Number(x.amount) || 0; }); });
+        const pct = sanctionValue ? Math.min(100, Math.round(disbursed / sanctionValue * 100)) : 0;
+
+        // KPI tiles
+        const kpi = function (icon, label, value) { return '<div class="ps-kpi"><i class="fas ' + icon + '"></i><div class="v">' + value + '</div><div class="l">' + label + '</div></div>'; };
+        const kEl = document.getElementById('psKpis');
+        if (kEl) kEl.innerHTML =
+          kpi('fa-gem', 'Sanctioned loans', rows.length) + kpi('fa-rupee-sign', 'Sanction value', psShort(sanctionValue)) +
+          kpi('fa-money-bill-wave', 'Disbursed', psShort(disbursed)) + kpi('fa-balance-scale', 'Balance due', psShort(balance)) +
+          kpi('fa-check-double', 'Fully disbursed', fullCount) + kpi('fa-calendar-alt', 'This month', psShort(thisMonth));
+
+        // progress + stage bars
+        const pEl = document.getElementById('psProgress');
+        if (pEl) pEl.innerHTML = '<div class="ps-row"><span>Disbursed vs sanctioned</span><b>' + pct + '%</b></div><div class="ps-bar"><i style="width:' + pct + '%"></i></div>';
+        const counts = {};
+        rows.forEach(function (r) { counts[r.stage] = (counts[r.stage] || 0) + 1; });
+        const maxC = Math.max.apply(null, PS_STAGES.map(function (k) { return counts[k] || 0; }).concat([1]));
+        const sEl = document.getElementById('psStages');
+        if (sEl) sEl.innerHTML = PS_STAGES.map(function (k) {
+          const c = counts[k] || 0;
+          return '<div class="ps-stagebar"><span class="n">' + k + '</span><span class="t"><i style="width:' + Math.round(c / maxC * 100) + '%;background:' + PS_STAGE_COLORS[k] + '"></i></span><b>' + c + '</b></div>';
+        }).join('');
+
+        // dashboard snapshot
+        const dEl = document.getElementById('psDashBody');
+        if (dEl) dEl.innerHTML = rows.length
+          ? '<div class="ps-snapgrid"><div><b>' + rows.length + '</b><span>Sanctioned</span></div><div><b>' + psShort(disbursed) + '</b><span>Disbursed</span></div><div><b>' + psShort(balance) + '</b><span>Balance due</span></div></div>' +
+            '<div class="ps-bar"><i style="width:' + pct + '%"></i></div><div class="ps-row" style="margin-top:4px;"><span>' + fullCount + ' fully disbursed</span><b>' + pct + '%</b></div>'
+          : '<div class="ps-empty">No sanctioned loans yet.</div>';
+
+        // list
+        const q = psSearchText.trim().toLowerCase();
+        const list = rows.filter(function (r) {
+          if (psFilter === 'action' && r.full) return false;
+          if (psFilter === 'disbursing' && r.stage !== 'Disbursing') return false;
+          if (psFilter === 'done' && !r.full) return false;
+          if (!q) return true;
+          return (r.name + ' ' + (r.s.application_no || '') + ' ' + (r.s.banker || '') + ' ' + r.s.lead_id).toLowerCase().indexOf(q) !== -1;
+        }).sort(function (a, b) {
+          return (a.full - b.full) || (a.doneCount - b.doneCount) || (new Date(a.s.sanction_date || a.s.created_at || 0) - new Date(b.s.sanction_date || b.s.created_at || 0));
+        });
+        const lEl = document.getElementById('psList');
+        if (!lEl) return;
+        lEl.innerHTML = list.length ? list.map(psLoanHtml).join('') : '<div class="ps-empty">No loans match.</div>';
+      }
+
+      function psLoanHtml(r) {
+        const s = r.s, open = String(psOpenId) === String(s.lead_id);
+        const dots = PS_STEPS.map(function (st, i) {
+          return '<span class="ps-dot ' + (r.done[st.key] ? 'on' : '') + '" title="' + st.label + '">' + (r.done[st.key] ? '✓' : (i + 1)) + '</span>' + (i < PS_STEPS.length - 1 ? '<span class="ps-line ' + (r.done[st.key] ? 'on' : '') + '"></span>' : '');
+        }).join('');
+        const pct = r.amount ? Math.min(100, Math.round(r.total / r.amount * 100)) : 0;
+        let html = '<div class="ps-loan' + (open ? ' open' : '') + '" data-lead="' + escapeHtml(s.lead_id) + '">' +
+          '<div class="ps-loan-head" data-toggle="' + escapeHtml(s.lead_id) + '"><div><strong>' + escapeHtml(r.name) + '</strong>' +
+          '<div class="ps-sub">' + escapeHtml(s.application_no || ('Lead ' + s.lead_id)) + ' · ' + escapeHtml(s.banker || 'Lender n/a') + (r.lead.loan_type ? ' · ' + escapeHtml(r.lead.loan_type) : '') + '</div></div>' +
+          '<div class="ps-right"><b>' + psShort(r.amount) + '</b><span class="ps-stage ' + psStageClass(r.stage) + '">' + escapeHtml(r.stage) + '</span></div></div>' +
+          '<div class="ps-dots">' + dots + '</div>' +
+          '<div class="ps-mini">' + (s.emi ? 'EMI ' + psShort(s.emi) + ' · ' : '') + (s.tenure_months ? s.tenure_months + ' mo' : '') + (s.roi ? ' @ ' + s.roi + '%' : '') +
+          ' &nbsp;|&nbsp; Disbursed <b>' + psShort(r.total) + '</b>' + (r.amount ? ' · Balance <b>' + (r.closed ? '₹0 (closed)' : psShort(r.balance)) + '</b>' : '') + '</div>' +
+          '<div class="ps-bar"><i style="width:' + pct + '%"></i></div>';
+        if (open) {
+          const ps = r.ps;
+          html += '<div class="ps-detail">';
+          let lastDoneIdx = -1;
+          PS_STEPS.forEach(function (st, i) { if (r.done[st.key] || (st.key === 'disbursed' && r.rel.length)) lastDoneIdx = i; });
+          html += PS_STEPS.map(function (st, i) {
+            const rec = ps[st.key];
+            const isDisb = st.key === 'disbursed';
+            const done = r.done[st.key];
+            const prevDone = i === 0 || r.done[PS_STEPS[i - 1].key];
+            let extra = '', btn = '';
+            if (isDisb) extra = r.rel.length ? psShort(r.total) + (r.amount ? ' of ' + psShort(r.amount) : '') + ' · ' + r.rel.length + ' release' + (r.rel.length > 1 ? 's' : '') : '';
+            else if (rec) extra = psDate(rec.date) + (rec.by ? ' · ' + escapeHtml(rec.by) : '');
+            if (!isDisb && !done && prevDone) btn = '<button class="btn-sm gold" data-act="step" data-key="' + st.key + '">Mark done</button>';
+            if (!isDisb && done && lastDoneIdx === i) btn = '<button class="btn-sm ghost" data-act="unstep" data-key="' + st.key + '">Undo</button>';
+            return '<div class="ps-stepline ' + (done ? 'done' : (prevDone ? 'next' : 'wait')) + '"><span class="ic">' + (done ? '✓' : st.icon) + '</span><span class="tx">' + st.label + (extra ? '<small>' + extra + '</small>' : '') + '</span>' + btn + '</div>';
+          }).join('');
+          if (r.rel.length) {
+            html += '<div class="ps-subtitle">Releases</div>' + r.rel.map(function (x, i) {
+              const last = i === r.rel.length - 1;
+              return '<div class="ps-rel"><span>Release ' + (i + 1) + ' · ' + psDate(x.date) + (x.by ? ' · ' + escapeHtml(x.by) : '') + '</span><b>' + fmtINR(x.amount) + '</b>' +
+                (last ? '<button class="btn-sm ghost" data-act="unrelease">Remove</button>' : '') + '</div>';
+            }).join('');
+          }
+          if (ps.docs && !r.full) {
+            const t = new Date(); t.setMinutes(t.getMinutes() - t.getTimezoneOffset());
+            const today = t.toISOString().slice(0, 10);
+            html += '<div class="ps-form"><div class="ps-subtitle" style="margin:0 0 6px;">' + (r.rel.length ? 'Record next release' : 'Record disbursement') + (r.amount ? ' · balance ' + psShort(r.balance || r.amount) : '') + '</div>' +
+              '<div class="ps-formgrid"><input type="number" class="ps-amt" min="1" placeholder="Amount (₹)" value="' + (r.amount ? Math.round(r.balance || r.amount) : '') + '">' +
+              '<input type="date" class="ps-date" value="' + today + '" max="' + today + '"></div>' +
+              '<label class="ps-final"><input type="checkbox" class="ps-fin"> Final release (close even if a balance remains)</label>' +
+              '<button class="btn-sm gold" style="width:100%;margin-top:6px;padding:9px;" data-act="release">💸 Record release</button></div>';
+          }
+          html += '</div>';
+        }
+        return html + '</div>';
+      }
+
+      // Writes leads.post_sanction: re-reads the latest value first so nothing the Associate app saved is overwritten.
+      async function psMutate(leadId, label, fn) {
+        if (!sfmSb) { toast('⚠️ Could not connect to Supabase'); return; }
+        const cur = await sfmSb.from('leads').select('post_sanction').eq('id', leadId).maybeSingle();
+        if (cur.error) { toast('⚠️ ' + cur.error.message); return; }
+        const ps = Object.assign({}, (cur.data && cur.data.post_sanction) || {});
+        if (fn(ps) === false) return;
+        const upd = await sfmSb.from('leads').update({ post_sanction: ps }).eq('id', leadId);
+        if (upd.error) { toast('⚠️ ' + upd.error.message); return; }
+        try {
+          await sfmSb.from('workflow_history').insert({ lead_id: leadId, action: 'Post-sanction: ' + label, user_name: (document.getElementById('adminName') || {}).textContent || 'Owner', role: 'owner' });
+        } catch (e) { /* history is best-effort */ }
+        toast('✅ ' + label);
+        await loadPostSanction();
+      }
+      function psWho() { return (document.getElementById('adminName') || {}).textContent || 'Owner'; }
+
+      document.getElementById('psList').addEventListener('click', function (e) {
+        const head = e.target.closest('[data-toggle]');
+        const btn = e.target.closest('button[data-act]');
+        if (btn) {
+          const card = btn.closest('.ps-loan');
+          const leadId = Number(card.dataset.lead);
+          const act = btn.dataset.act, key = btn.dataset.key;
+          const row = psRows.filter(function (r) { return Number(r.s.lead_id) === leadId; })[0];
+          if (act === 'step') {
+            const idx = PS_STEPS.findIndex(function (x) { return x.key === key; });
+            psMutate(leadId, PS_STEPS[idx].label, function (ps) {
+              if (idx > 0 && !ps[PS_STEPS[idx - 1].key]) { toast('⚠️ Complete the earlier step first'); return false; }
+              ps[key] = { date: new Date().toISOString(), by: psWho() };
+            });
+          } else if (act === 'unstep') {
+            const idx = PS_STEPS.findIndex(function (x) { return x.key === key; });
+            psMutate(leadId, 'Undo: ' + PS_STEPS[idx].label, function (ps) {
+              if (key === 'docs' && psReleases(ps).length) { toast('⚠️ Remove the releases first'); return false; }
+              delete ps[key];
+            });
+          } else if (act === 'release') {
+            const amount = Math.round(Number(card.querySelector('.ps-amt').value) || 0);
+            const dateStr = card.querySelector('.ps-date').value;
+            const isFinal = card.querySelector('.ps-fin').checked;
+            if (!(amount > 0)) { toast('⚠️ Enter the amount released'); return; }
+            const nowD = new Date(); nowD.setMinutes(nowD.getMinutes() - nowD.getTimezoneOffset());
+            const todayStr = nowD.toISOString().slice(0, 10);
+            // a release dated today is stored with the current time; an earlier date is stored at noon
+            const when = dateStr === todayStr ? new Date() : new Date(dateStr + 'T12:00:00');
+            if (!dateStr || isNaN(when) || dateStr > todayStr) { toast('⚠️ Choose a valid release date (not in the future)'); return; }
+            if (row && row.amount && row.total + amount > row.amount + 1 &&
+                !confirm('Total released would be ' + fmtINR(row.total + amount) + ', more than the sanctioned ' + fmtINR(row.amount) + '. Continue?')) return;
+            psMutate(leadId, 'Released ' + fmtINR(amount), function (ps) {
+              if (!ps.docs) { toast('⚠️ Complete the documentation step first'); return false; }
+              const rel = psReleases(ps).slice();
+              rel.push({ date: when.toISOString(), amount: amount, by: psWho() });
+              ps.disbursements = rel;
+              delete ps.disbursed;
+              if (isFinal) ps.disbursementClosed = { date: new Date().toISOString(), by: psWho() };
+            });
+          } else if (act === 'unrelease') {
+            if (!confirm('Remove the latest release?')) return;
+            psMutate(leadId, 'Release removed', function (ps) {
+              const rel = psReleases(ps).slice(0, -1);
+              ps.disbursements = rel;
+              delete ps.disbursed;
+              delete ps.disbursementClosed;
+            });
+          }
+          return;
+        }
+        if (head) {
+          psOpenId = String(psOpenId) === String(head.dataset.toggle) ? null : head.dataset.toggle;
+          renderPostSanction();
+        }
+      });
+      document.getElementById('psChips').addEventListener('click', function (e) {
+        const b = e.target.closest('button[data-f]');
+        if (!b) return;
+        psFilter = b.dataset.f;
+        document.querySelectorAll('#psChips button').forEach(function (x) { x.classList.toggle('on', x === b); });
+        renderPostSanction();
+      });
+      document.getElementById('psSearch').addEventListener('input', function () { psSearchText = this.value; renderPostSanction(); });
+      document.getElementById('psRefresh').addEventListener('click', loadPostSanction);
+      document.getElementById('psDashCard').addEventListener('click', function () {
+        const t = document.querySelector('.tabs button[data-tab="post-sanction"]');
+        if (t) t.click();
+      });
+
       // ================================================================
       // SANCTIONS REGISTER — pulls from `sanctions` (final source of truth),
       // cross-verified against the linked lead's credit-approved amount/ROI.
@@ -2416,23 +2841,23 @@
       async function loadSanctionsRegister() {
         const tbody = document.getElementById('sanctionsTableBody');
         if (!tbody) return;
-        if (!sfmSb) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#e05252;">Could not connect to Supabase</td></tr>'; return; }
-        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#6a5f48;">Loading...</td></tr>';
+        if (!sfmSb) { tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:#e05252;">Could not connect to Supabase</td></tr>'; return; }
+        tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:#6a5f48;">Loading...</td></tr>';
 
         // Pulls only the final admin-sanctioned fields from `sanctions`
         // (joined with `leads` solely for the borrower's name) — no credit-
         // stage cross-check here; this view is the sanction register as-is.
         const { data, error } = await sfmSb
           .from('sanctions')
-          .select('application_no, lead_id, banker, sanction_amount, tenure_months, roi, emi, processing_fee, insurance, conditions, final_remarks, created_at, leads(borrower)')
+          .select('application_no, lead_id, banker, sanction_amount, tenure_months, roi, emi, processing_fee, insurance, conditions, final_remarks, created_at, leads(borrower, post_sanction)')
           .order('created_at', { ascending: false });
 
         if (error) {
-          tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#e05252;">' + escapeHtml(error.message) + '</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:#e05252;">' + escapeHtml(error.message) + '</td></tr>';
           return;
         }
         if (!data || data.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#6a5f48;">No sanctions recorded yet.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:#6a5f48;">No sanctions recorded yet.</td></tr>';
           return;
         }
 
@@ -2452,6 +2877,8 @@
             '<td>' + fmtINR(s.processing_fee) + '</td>' +
             '<td>' + fmtINR(s.insurance) + '</td>' +
             '<td>' + escapeHtml(s.conditions || s.final_remarks || '—') + '</td>' +
+            '<td>' + fmtINR(psCompute(s).total) + '</td>' +
+            '<td><span class="ps-stage ' + psStageClass(psCompute(s).stage) + '">' + escapeHtml(psCompute(s).stage) + '</span></td>' +
             '</tr>';
         }).join('');
       }
@@ -2971,6 +3398,9 @@
           }
           if (tab === 'sanctions') {
             loadSanctionsRegister();
+          }
+          if (tab === 'post-sanction') {
+            loadPostSanction();
           }
         });
       });
