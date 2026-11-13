@@ -1393,7 +1393,8 @@
         <div id="modalBody"></div>
         <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
           <button class="btn-sm gold" id="modalCopyBtn"><i class="fas fa-copy"></i> Copy</button>
-          <button class="btn-sm blue" id="modalDownloadBtn"><i class="fas fa-download"></i> Download .txt</button>
+          <button class="btn-sm blue" id="modalDownloadBtn"><i class="fas fa-file-pdf"></i> Download PDF</button>
+          <button class="btn-sm ghost" id="modalTxtBtn"><i class="fas fa-file-alt"></i> .txt</button>
           <button class="btn-sm success" id="modalWhatsAppBtn"><i class="fab fa-whatsapp"></i> Send WhatsApp</button>
         </div>
       </div>
@@ -2244,11 +2245,12 @@
         modal.classList.add('show');
         document.getElementById('modalCopyBtn').onclick = function() { navigator.clipboard.writeText(body.innerText)
           .then(function() { toast('📋 Copied'); }); };
-        document.getElementById('modalDownloadBtn').onclick = function() { const blob = new Blob([body.innerText], {
-            type: 'text/plain'
-          }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url;
-          a.download = 'Lead_' + lead.id + '.txt'; a.click();
-          URL.revokeObjectURL(url); };
+        document.getElementById('modalDownloadBtn').onclick = function() {
+          buildBrandedPDF(docCfgFromText(body.innerText, 'Lead Summary')).save('Lead_' + lead.id + '.pdf');
+        };
+        document.getElementById('modalTxtBtn').onclick = function() {
+          saveFileBlob(new Blob([body.innerText], { type: 'text/plain' }), 'Lead_' + lead.id + '.txt', 'text/plain');
+        };
         document.getElementById('modalWhatsAppBtn').onclick = function() { const phone = lead.borrower.phone.replace(
             /[^0-9]/g, ''); const msg = 'SOLITAIRE Lead #' + lead.id + '\n' + body.innerText; window.open(
             'https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank'); };
@@ -2356,13 +2358,11 @@
           navigator.clipboard.writeText(window._docContent).then(function() { toast('📋 Copied'); });
         };
         document.getElementById('modalDownloadBtn').onclick = function() {
-          const blob = new Blob([window._docContent], { type: 'text/plain' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = type + '_' + Date.now() + '.txt';
-          a.click();
-          URL.revokeObjectURL(url);
+          const titles = { provisional: { tableTitle: 'Sanction Details', conditionsTitle: 'Conditions of Sanction' }, invoice: { tableTitle: 'Invoice Details', conditionsTitle: 'Notes' }, quotation: { tableTitle: 'Quotation Details', conditionsTitle: 'Products Offered' } };
+          buildBrandedPDF(docCfgFromText(window._docContent, String(type).replace(/_/g, ' '), titles[type])).save(type + '_' + Date.now() + '.pdf');
+        };
+        document.getElementById('modalTxtBtn').onclick = function() {
+          saveFileBlob(new Blob([window._docContent], { type: 'text/plain' }), type + '_' + Date.now() + '.txt', 'text/plain');
         };
         document.getElementById('modalWhatsAppBtn').onclick = function() {
           const phone = window._docLead ? window._docLead.borrower.phone.replace(/[^0-9]/g, '') : '';
@@ -3007,6 +3007,140 @@
         return html;
       }
 
+
+      // ================================================================
+      // RELIABLE FILE SAVING — used by every PDF / text download in this panel.
+      // Works in desktop browsers, on phones (share sheet) and inside an Android
+      // app wrapper (WebView), where plain blob downloads are blocked. Order:
+      //   1. native app plugins (Capacitor Filesystem + Share) if present
+      //   2. phone share sheet (Save to Files / Drive / WhatsApp ...)
+      //   3. Android WebView: upload to private storage and open a short-lived https link
+      //   4. normal browser download
+      // A small "tap here" banner is always shown as a backup.
+      // ================================================================
+      function dlSafeName(n) { return String(n || 'file').replace(/[^A-Za-z0-9._-]+/g, '_'); }
+      function dlBytesToBase64(buf) {
+        const bytes = new Uint8Array(buf);
+        let bin = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+        return btoa(bin);
+      }
+      async function dlCloudLink(blob, fileName, mime) {
+        if (!sfmSb) throw new Error('Cloud storage is not connected');
+        let who = 'owner';
+        try { const r = await sfmSb.auth.getSession(); who = (r && r.data && r.data.session && r.data.session.user && r.data.session.user.email) || 'owner'; } catch (e) {}
+        const path = 'exports/' + dlSafeName(who) + '/' + Date.now() + '-' + dlSafeName(fileName);
+        const up = await sfmSb.storage.from('lead-documents').upload(path, blob, { upsert: true, contentType: mime });
+        if (up.error) throw new Error(up.error.message || 'Upload failed');
+        const signed = await sfmSb.storage.from('lead-documents').createSignedUrl(path, 300, { download: fileName });
+        if (signed.error) throw new Error(signed.error.message || 'Could not create link');
+        setTimeout(function () { try { sfmSb.storage.from('lead-documents').remove([path]); } catch (e) {} }, 6 * 60 * 1000);
+        return signed.data.signedUrl;
+      }
+      function dlBanner(fileName, url, isCloud, note) {
+        const old = document.getElementById('dlBanner');
+        if (old) old.remove();
+        const b = document.createElement('div');
+        b.id = 'dlBanner';
+        b.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:99999;max-width:92vw;background:#1c1c2a;color:#f0e6d0;border:1px solid rgba(201,168,76,0.5);border-radius:14px;padding:10px 14px;font-size:12px;box-shadow:0 10px 28px rgba(0,0,0,0.6);text-align:center;';
+        b.innerHTML = '✅ ' + escapeHtml(fileName) + ' ready<br><a href="' + url + '" ' + (isCloud ? 'target="_blank" rel="noopener"' : 'download="' + escapeHtml(fileName) + '"') +
+          ' style="color:#6a9ad4;text-decoration:underline;">Tap here if it did not download</a>' + (note ? '<div style="color:#d4a86a;margin-top:4px;">' + escapeHtml(note) + '</div>' : '') +
+          ' <span id="dlBannerX" style="margin-left:10px;cursor:pointer;color:#8a7f66;">✕</span>';
+        document.body.appendChild(b);
+        document.getElementById('dlBannerX').onclick = function () { b.remove(); };
+        setTimeout(function () { if (b.parentNode) b.remove(); }, 30000);
+      }
+      async function saveFileBlob(blob, fileName, mime) {
+        mime = mime || blob.type || 'application/octet-stream';
+        const ua = navigator.userAgent;
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(ua) || (navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.platform));
+        const isAndroidWebView = /Android/i.test(ua) && /; wv\)|Version\/\d+\.\d+ Chrome/i.test(ua);
+        const url = URL.createObjectURL(blob);
+        let handled = false, cloudLink = null, cloudMsg = '';
+
+        // 1. Capacitor app
+        try {
+          const cap = window.Capacitor;
+          if (cap && cap.isNativePlatform && cap.isNativePlatform() && cap.Plugins && cap.Plugins.Filesystem && cap.Plugins.Share) {
+            const saved = await cap.Plugins.Filesystem.writeFile({ path: fileName, data: dlBytesToBase64(await blob.arrayBuffer()), directory: 'CACHE' });
+            await cap.Plugins.Share.share({ title: fileName, url: saved.uri, dialogTitle: 'Save or share' });
+            handled = true;
+          }
+        } catch (e) { if (e && /cancel|dismiss/i.test(String(e.message || e))) handled = true; }
+
+        // 2. Phone share sheet
+        if (!handled && isMobile && navigator.canShare && typeof File === 'function') {
+          try {
+            const file = new File([blob], fileName, { type: mime });
+            if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: fileName }); handled = true; }
+          } catch (e) { if (e && e.name === 'AbortError') handled = true; }
+        }
+
+        // 3. Android app wrapper: hand over a normal https link
+        if (!handled && isAndroidWebView) {
+          try {
+            cloudLink = await dlCloudLink(blob, fileName, mime);
+            window.open(cloudLink, '_blank');
+            handled = true;
+          } catch (e) { cloudMsg = (e && e.message) ? 'Web link failed: ' + e.message : 'Web link failed'; }
+        }
+
+        // 4. Normal download
+        if (!handled) {
+          const a = document.createElement('a');
+          a.href = url; a.download = fileName; a.style.display = 'none';
+          document.body.appendChild(a); a.click(); a.remove();
+        }
+        dlBanner(fileName, cloudLink || url, !!cloudLink, cloudMsg);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 10 * 60 * 1000);
+        toast('📄 ' + fileName + ' ready');
+      }
+
+      // Turns the plain-text documents (invoice, quotation, provisional sanction, lead summary)
+      // into the same branded letterhead layout the other reports use.
+      function docCfgFromText(content, fallbackTitle, opts) {
+        opts = opts || {};
+        const lines = String(content || '').split('\n').map(function (l) { return l.replace(/\s+$/, ''); });
+        let i = 0;
+        if (lines[0] && /SOLITAIRE/i.test(lines[0])) i = 1;
+        let title = fallbackTitle || 'Document';
+        if (lines[i] && lines[i].trim() && !/:/.test(lines[i])) { title = lines[i].trim(); i++; }
+        const cfg = { dated: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }), refNo: 'SFM/DOC/' + Date.now().toString().slice(-6), fileNo: '—',
+          title: title, toLine: '', introParagraph: '', tableTitle: 'Details', tableRows: [], conditions: [], conditionsTitle: 'Terms & Conditions', footerNote: '' };
+        const rows = [], conds = [], paras = [];
+        let pendingKey = null;
+        for (; i < lines.length; i++) {
+          const t = lines[i].trim();
+          if (!t) { pendingKey = null; continue; }
+          if (pendingKey) {
+            // "Bank Details:" followed by more "Label: value" lines is a heading, not a value
+            if (/^[A-Za-z][A-Za-z0-9 .()%/&-]{0,28}:(\s+.+)?$/.test(t)) pendingKey = null;
+            else { rows.push([pendingKey, t]); pendingKey = null; continue; }
+          }
+          if (/^To,?$/i.test(t)) { const a = (lines[i + 1] || '').trim(), b = (lines[i + 2] || '').trim(); cfg.toLine = [a, b].filter(Boolean).join('  |  '); i += 2; continue; }
+          const num = t.match(/^\d+\.\s+(.*)$/);
+          if (num) { conds.push(num[1]); continue; }
+          const keyOnly = t.match(/^([A-Za-z][A-Za-z0-9 .()%/&-]{0,28}):$/);
+          if (keyOnly) { pendingKey = keyOnly[1]; continue; }
+          const kv = t.match(/^([A-Za-z][A-Za-z0-9 .()%/&-]{0,28}):\s+(.+)$/);
+          if (kv) {
+            const k = kv[1], v = kv[2];
+            if (/^date$/i.test(k)) { cfg.dated = v; continue; }
+            if (/^(invoice no|quote no|ref|ref no|reference)\.?$/i.test(k)) { cfg.refNo = v; continue; }
+            if (/^subject$/i.test(k)) { cfg.title = v; continue; }
+            rows.push([k, v]); continue;
+          }
+          paras.push(t);
+        }
+        cfg.tableRows = rows;
+        cfg.conditions = conds;
+        cfg.introParagraph = paras.join('  ');
+        if (opts.tableTitle) cfg.tableTitle = opts.tableTitle;
+        if (opts.conditionsTitle) cfg.conditionsTitle = opts.conditionsTitle;
+        if (!rows.length) cfg.tableTitle = '';
+        return cfg;
+      }
+
       // Same call signature as before — buildBrandedPDF(cfg).save(filename) —
       // so none of the four generate...PDF() functions below need to change.
       function buildBrandedPDF(cfg) {
@@ -3026,11 +3160,15 @@
                 pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', 'li'] },
               })
               .from(container)
-              .save()
-              .then(function () { document.body.removeChild(container); })
+              .outputPdf('blob')
+              .then(function (blob) {
+                if (container.parentNode) document.body.removeChild(container);
+                return saveFileBlob(blob, filename, 'application/pdf');
+              })
               .catch(function (err) {
-                document.body.removeChild(container);
+                if (container.parentNode) document.body.removeChild(container);
                 console.error(err);
+                toast('⚠️ Could not create the PDF: ' + (err && err.message ? err.message : 'unknown error'));
               });
           },
         };
