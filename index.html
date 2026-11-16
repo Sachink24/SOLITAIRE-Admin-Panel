@@ -1743,6 +1743,7 @@
         await loadAllFromSupabase();
         renderAll();
         loadPostSanction();
+        startPostSanctionLive();
         addFeed('👑 Owner logged in');
 
         // Keep the panel current without a manual refresh — full
@@ -2585,6 +2586,21 @@
       const PS_STAGES = ['Sanctioned', 'Letter issued', 'Customer accepted', 'Documentation done', 'Disbursing', 'Disbursed'];
       const PS_STAGE_COLORS = { 'Sanctioned': '#c9a84c', 'Letter issued': '#5b8fd6', 'Customer accepted': '#9b7bd1', 'Documentation done': '#4fb3bf', 'Disbursing': '#d98c5f', 'Disbursed': '#4fb286' };
       let psRows = [], psFilter = 'all', psSearchText = '', psOpenId = null;
+      let psLiveStarted = false, psDirty = false, psTimer = null;
+
+      // Live sync: when the Associate app (or another device) records a step or a release, or Admin
+      // approves a sanction, this panel reloads the tracker within a second. It also refreshes when
+      // the panel comes back to the foreground.
+      function psSoon() { clearTimeout(psTimer); psTimer = setTimeout(loadPostSanction, 700); }
+      function startPostSanctionLive() {
+        if (psLiveStarted || !sfmSb) return;
+        psLiveStarted = true;
+        sfmSb.channel('ps-live')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, psSoon)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'sanctions' }, psSoon)
+          .subscribe();
+        document.addEventListener('visibilitychange', function () { if (!document.hidden) psSoon(); });
+      }
 
       function psReleases(ps) {
         if (Array.isArray(ps.disbursements)) return ps.disbursements;
@@ -2689,6 +2705,9 @@
         });
         const lEl = document.getElementById('psList');
         if (!lEl) return;
+        // never replace the list while an amount or date is being typed; refresh right after
+        const ae = document.activeElement;
+        if (ae && ae.tagName === 'INPUT' && ae.closest && ae.closest('#psList')) { psDirty = true; return; }
         lEl.innerHTML = list.length ? list.map(psLoanHtml).join('') : '<div class="ps-empty">No loans match.</div>';
       }
 
@@ -2751,8 +2770,9 @@
         if (cur.error) { toast('⚠️ ' + cur.error.message); return; }
         const ps = Object.assign({}, (cur.data && cur.data.post_sanction) || {});
         if (fn(ps) === false) return;
+        ps._rev = (Number(ps._rev) || 0) + 1; // revision number: the database rejects a stale save
         const upd = await sfmSb.from('leads').update({ post_sanction: ps }).eq('id', leadId);
-        if (upd.error) { toast('⚠️ ' + upd.error.message); return; }
+        if (upd.error) { toast('⚠️ ' + upd.error.message); if (upd.error.code === '40001') await loadPostSanction(); return; }
         try {
           await sfmSb.from('workflow_history').insert({ lead_id: leadId, action: 'Post-sanction: ' + label, user_name: (document.getElementById('adminName') || {}).textContent || 'Owner', role: 'owner' });
         } catch (e) { /* history is best-effort */ }
@@ -2816,6 +2836,9 @@
           psOpenId = String(psOpenId) === String(head.dataset.toggle) ? null : head.dataset.toggle;
           renderPostSanction();
         }
+      });
+      document.getElementById('psList').addEventListener('focusout', function () {
+        if (psDirty) { psDirty = false; setTimeout(renderPostSanction, 600); }
       });
       document.getElementById('psChips').addEventListener('click', function (e) {
         const b = e.target.closest('button[data-f]');
