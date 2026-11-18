@@ -2641,15 +2641,35 @@
 
       async function loadPostSanction() {
         if (!sfmSb) return;
-        const res = await sfmSb.from('sanctions')
-          .select('application_no, lead_id, banker, sanction_amount, tenure_months, roi, emi, sanction_date, created_at, leads(borrower, post_sanction, assigned_ba, loan_type)')
-          .order('created_at', { ascending: false });
+        // Same definition as the Associate app: sanction records, plus leads that Admin approved
+        // (stage SANCTIONED / DISBURSED, status APPROVED) or that already have post-sanction progress.
+        const cols = 'id, borrower, stage, status, post_sanction, assigned_ba, loan_type, loan_amount, credit_loan_amount, credit_term_months, credit_roi, institution_name, updated_at';
+        const all = await Promise.all([
+          sfmSb.from('sanctions')
+            .select('application_no, lead_id, banker, sanction_amount, tenure_months, roi, emi, sanction_date, created_at, leads(borrower, post_sanction, assigned_ba, loan_type)')
+            .order('created_at', { ascending: false }),
+          sfmSb.from('leads').select(cols).or('stage.ilike.sanctioned,stage.ilike.disbursed,status.eq.APPROVED'),
+          sfmSb.from('leads').select(cols).neq('post_sanction', '{}')
+        ]);
+        const res = all[0];
         if (res.error) {
           const l = document.getElementById('psList');
           if (l) l.innerHTML = '<div class="ps-empty" style="color:#e05252;">' + escapeHtml(res.error.message) + '</div>';
           return;
         }
-        psRows = (res.data || []).map(psCompute);
+        const rows = (res.data || []).slice();
+        const have = {};
+        rows.forEach(function (r) { have[String(r.lead_id)] = true; });
+        const extra = {};
+        ((all[1].data || []).concat(all[2].data || [])).forEach(function (l) {
+          if (!have[String(l.id)] && !extra[l.id] && Object.keys(l.post_sanction || {}).filter(function (k) { return k !== '_rev'; }).length + (String(l.status || '').toUpperCase() === 'APPROVED' || /^(sanctioned|disbursed)$/i.test(String(l.stage || '').trim()) ? 1 : 0) > 0) extra[l.id] = l;
+        });
+        Object.keys(extra).forEach(function (id) {
+          const l = extra[id];
+          rows.push({ application_no: null, lead_id: l.id, banker: l.institution_name, sanction_amount: l.credit_loan_amount || l.loan_amount,
+            tenure_months: l.credit_term_months, roi: l.credit_roi, emi: null, sanction_date: null, created_at: l.updated_at, leads: l, _noSanction: true });
+        });
+        psRows = rows.map(psCompute);
         renderPostSanction();
       }
 
@@ -2719,7 +2739,7 @@
         const pct = r.amount ? Math.min(100, Math.round(r.total / r.amount * 100)) : 0;
         let html = '<div class="ps-loan' + (open ? ' open' : '') + '" data-lead="' + escapeHtml(s.lead_id) + '">' +
           '<div class="ps-loan-head" data-toggle="' + escapeHtml(s.lead_id) + '"><div><strong>' + escapeHtml(r.name) + '</strong>' +
-          '<div class="ps-sub">' + escapeHtml(s.application_no || ('Lead ' + s.lead_id)) + ' · ' + escapeHtml(s.banker || 'Lender n/a') + (r.lead.loan_type ? ' · ' + escapeHtml(r.lead.loan_type) : '') + '</div></div>' +
+          '<div class="ps-sub">' + escapeHtml(s.application_no || ('Lead ' + s.lead_id)) + ' · ' + escapeHtml(s.banker || 'Lender n/a') + (r.lead.loan_type ? ' · ' + escapeHtml(r.lead.loan_type) : '') + (s._noSanction ? ' · <span style="color:#d4a86a;">⚠ no sanction record yet</span>' : '') + '</div></div>' +
           '<div class="ps-right"><b>' + psShort(r.amount) + '</b><span class="ps-stage ' + psStageClass(r.stage) + '">' + escapeHtml(r.stage) + '</span></div></div>' +
           '<div class="ps-dots">' + dots + '</div>' +
           '<div class="ps-mini">' + (s.emi ? 'EMI ' + psShort(s.emi) + ' · ' : '') + (s.tenure_months ? s.tenure_months + ' mo' : '') + (s.roi ? ' @ ' + s.roi + '%' : '') +
